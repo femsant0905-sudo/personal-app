@@ -247,9 +247,9 @@ function renderHome(){
   } else h+='<div style="font-size:14px;color:#7a9a7a">Nenhuma medição ainda</div>';
   h+='<div style="margin-top:10px;font-size:11px;color:#3d5a3d">Meta: abaixo de 120/80</div></div>';
 
-  h+='<div class="card" style="border-left:3px solid #4ade80;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between">';
+  h+='<div class="card" style="border-left:3px solid #4ade80;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;cursor:pointer;active:opacity:.8" onclick="goTo(\'treino\');startTreino(\''+prox.id+'\')">';
   h+='<div>'+tag("Próximo Treino","#4ade80")+'<div style="font-size:19px;font-weight:800;margin-top:8px">Dia '+prox.id+' — '+prox.nome+'</div><div style="font-size:12px;color:#7a9a7a;margin-top:3px">'+prox.sub+'</div></div>';
-  h+='<div style="font-size:40px;font-weight:900;color:#4ade8033">'+prox.id+'</div></div>';
+  h+='<div style="font-size:40px;font-weight:900;color:#4ade8033">▶</div></div>';
 
   h+='<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:10px">';
   [[" #f97316",Object.keys(treinos).length,"Treinos"],["#4ade80",kcalH,"kcal hoje"],["#fbbf24",pesos.length,"Pesagens"]].forEach(function(x){
