@@ -1,0 +1,10 @@
+{
+  "name": "Personal App",
+  "short_name": "Personal",
+  "description": "Treino, dieta e saúde pessoal",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#0a0f0a",
+  "theme_color": "#f97316",
+  "orientation": "portrait"
+}
