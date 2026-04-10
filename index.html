@@ -279,6 +279,26 @@ function renderHome(){
   if(!pesouHoje) h+='<div class="alert"><div class="alert-dot"></div>Registre seu peso hoje</div>';
   if(!medidoHoje)h+='<div class="alert"><div class="alert-dot"></div>Meça a pressão arterial hoje</div>';
 
+  if(new Date().getDay()===1){
+    var d2=new Date();d2.setDate(d2.getDate()-1);var semFim=d2.toISOString().split('T')[0];
+    d2.setDate(d2.getDate()-6);var semIni=d2.toISOString().split('T')[0];
+    var tSem=Object.keys(treinos).filter(function(k){return k>=semIni&&k<=semFim;});
+    var pSem=pesos.filter(function(p){return p.data>=semIni&&p.data<=semFim;});
+    var pMed=pSem.length?f1(pSem.reduce(function(s,p){return s+p.peso;},0)/pSem.length):null;
+    var prSem=Object.values(pressoes).filter(function(p){return p.data>=semIni&&p.data<=semFim;});
+    var dSeg=Object.keys(dietaLog).filter(function(k){return k>=semIni&&k<=semFim;}).filter(function(k){
+      var dd=dietaLog[k];return ['whey','cafe','almoco','lanche','jantar'].filter(function(id){return dd[id];}).length>=3;
+    }).length;
+    h+='<div class="card" style="border-left:3px solid #4ade80;margin-bottom:10px">'+tag("Resumo da Semana","#4ade80");
+    h+='<div style="font-size:11px;color:#3d5a3d;margin-top:4px;margin-bottom:12px">'+fmtD(semIni)+' – '+fmtD(semFim)+'</div>';
+    h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">';
+    h+='<div><div style="font-size:10px;color:#7a9a7a;font-weight:700;letter-spacing:.08em;text-transform:uppercase;margin-bottom:4px">Treinos</div><div style="font-size:28px;font-weight:900;color:#f97316">'+tSem.length+'<span style="font-size:13px;color:#7a9a7a"> realizados</span></div></div>';
+    h+='<div><div style="font-size:10px;color:#7a9a7a;font-weight:700;letter-spacing:.08em;text-transform:uppercase;margin-bottom:4px">Peso médio</div><div style="font-size:28px;font-weight:900;color:#f97316">'+(pMed||'—')+'<span style="font-size:13px;color:#7a9a7a"> kg</span></div></div>';
+    h+='<div><div style="font-size:10px;color:#7a9a7a;font-weight:700;letter-spacing:.08em;text-transform:uppercase;margin-bottom:4px">Dieta (≥3 ref.)</div><div style="font-size:28px;font-weight:900;color:#4ade80">'+dSeg+'<span style="font-size:13px;color:#7a9a7a"> / 7 dias</span></div></div>';
+    h+='<div><div style="font-size:10px;color:#7a9a7a;font-weight:700;letter-spacing:.08em;text-transform:uppercase;margin-bottom:4px">Pressões</div><div style="font-size:28px;font-weight:900;color:#fbbf24">'+prSem.length+'<span style="font-size:13px;color:#7a9a7a"> registros</span></div></div>';
+    h+='</div><button id="btn-rel" onclick="copiarRelatorio(\''+semIni+'\',\''+semFim+'\')" style="width:100%;margin-top:12px;padding:10px;background:#1a3a1a;color:#4ade80;border:1px solid #4ade8033;border-radius:10px;cursor:pointer;font-size:12px;font-weight:800;letter-spacing:.05em">COPIAR PARA O CLAUDE</button></div>';
+  }
+
   h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">';
   h+='<div class="card" style="border-left:3px solid #f97316">'+tag("Peso","#f97316");
   h+='<div style="font-size:36px;font-weight:900;letter-spacing:-.03em;margin-top:8px;line-height:1">'+f1(peso)+'<span style="font-size:14px;color:#7a9a7a;margin-left:3px">kg</span></div>';
@@ -468,6 +488,7 @@ function startTreino(id){
 
 function renderTreinoExec(){
   var t=treinoAtivo;
+  var ehPesado=t.id==='E'||t.id==='F';
   var elap=treinoElapsed||0;
   var clockStr=pad(Math.floor(elap/60))+":"+pad(elap%60);
   var gastoSalvo=(treinos[hoje()]&&treinos[hoje()].gasto)?treinos[hoje()].gasto:"";
@@ -495,11 +516,12 @@ function renderTreinoExec(){
   h+='<div style="display:flex;justify-content:space-between;align-items:center">';
   h+='<div>'+tag("Descanso","#f97316")+'<div class="timer-big '+(timerRunning?"run":"")+'" id="timer-display">'+(timerVal>0?timerVal+"s":"—")+'</div></div>';
   h+='<div style="display:flex;gap:8px">';
-  h+='<button onclick="startTimer(60)" style="padding:12px 18px;background:#f9731622;color:#f97316;border-radius:12px;border:1px solid #f9731644;cursor:pointer;font-size:14px;font-weight:800">60s</button>';
-  h+='<button onclick="startTimer(90)" style="padding:12px 18px;background:#f9731622;color:#f97316;border-radius:12px;border:1px solid #f9731644;cursor:pointer;font-size:14px;font-weight:800">90s</button>';
+  var t1=ehPesado?90:60, t2=ehPesado?120:90;
+  h+='<button onclick="startTimer('+t1+')" style="padding:12px 18px;background:#f9731622;color:#f97316;border-radius:12px;border:1px solid #f9731644;cursor:pointer;font-size:14px;font-weight:800">'+t1+'s</button>';
+  h+='<button onclick="startTimer('+t2+')" style="padding:12px 18px;background:#f9731622;color:#f97316;border-radius:12px;border:1px solid #f9731644;cursor:pointer;font-size:14px;font-weight:800">'+t2+'s</button>';
   if(timerRunning)h+='<button onclick="stopTimer()" style="padding:12px 14px;background:#243324;color:#7a9a7a;border-radius:12px;border:none;cursor:pointer">✕</button>';
   h+='</div></div>';
-  if(timerRunning)h+='<div style="margin-top:12px">'+bar(timerVal,90,4,"#4ade80","#f97316")+'</div>';
+  if(timerRunning)h+='<div style="margin-top:12px">'+bar(timerVal,t2,4,"#4ade80","#f97316")+'</div>';
   h+='</div>';
 
   // exercícios
@@ -516,7 +538,7 @@ function renderTreinoExec(){
     h+='<div style="flex:1">';
     h+='<div style="display:flex;align-items:center;gap:6px">';
     h+='<div style="font-size:15px;font-weight:700">'+e.nome+'</div>';
-    if(comp)h+=tag("90s","#f97316"); else h+=tag("60s","#7a9a7a");
+    if(comp)h+=tag(ehPesado?"120s":"90s","#f97316"); else h+=tag(ehPesado?"90s":"60s","#7a9a7a");
     h+='</div>';
     h+='<div style="font-size:12px;color:#7a9a7a;margin-top:2px">'+e.s+' × '+e.r;
     if(ultimaCarga)h+=' · <span style="color:#fbbf24">último: '+ultimaCarga+'kg</span>';
@@ -750,6 +772,8 @@ function setDietaAba(aba){dietaAba=aba;renderDieta();}
 function toggleRefeicao(id){if(!dietaLog[hoje()])dietaLog[hoje()]={};dietaLog[hoje()][id]=!dietaLog[hoje()][id];save();renderDieta();}
 
 // ── CORPO ────────────────────────────────────────────────────────────────────
+var corpoExSel=null;
+function setCorpoEx(nome){corpoExSel=corpoExSel===nome?null:nome;renderCorpo();}
 function renderCorpo(){
   var ult=pesos.slice(-14);
   var mn=ult.length?Math.min.apply(null,ult.map(function(x){return x.peso;})):110;
@@ -798,6 +822,40 @@ function renderCorpo(){
   h+='<div style="font-size:12px;color:#4ade80;background:#1a3a1a;border-radius:12px;padding:10px 14px;margin-top:4px;line-height:1.6;border:1px solid #4ade8033">Agendar cardiologista em Nova York — acompanhamento do score de cálcio.</div>';
   h+='</div></div>';
 
+  var exComHist=Object.keys(cargaHist).filter(function(k){return cargaHist[k]&&cargaHist[k].length>0;});
+  if(exComHist.length>0){
+    h+='<div class="card" style="margin-bottom:10px">'+tag("Progressão de Carga","#f97316");
+    h+='<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:12px">';
+    exComHist.forEach(function(nome){
+      h+='<button class="pill '+(corpoExSel===nome?"active":"")+'" onclick="setCorpoEx(\''+nome.replace(/\'/g,"\\'")+'\')">'+nome+'</button>';
+    });
+    h+='</div>';
+    if(corpoExSel&&cargaHist[corpoExSel]){
+      var hist=cargaHist[corpoExSel].slice(-8);
+      var maxKg=Math.max.apply(null,hist.map(function(s){return Math.max.apply(null,s.series.map(function(x){return parseFloat(x.kg)||0;}));}));
+      h+='<div style="margin-top:16px"><div style="font-size:11px;color:#7a9a7a;margin-bottom:10px;font-weight:600;letter-spacing:.05em">'+corpoExSel.toUpperCase()+' — últimas '+hist.length+' sessões</div>';
+      h+='<div style="display:flex;align-items:flex-end;gap:4px;height:72px">';
+      hist.forEach(function(s){
+        var kg=Math.max.apply(null,s.series.map(function(x){return parseFloat(x.kg)||0;}));
+        var ht=maxKg?Math.max(4,(kg/maxKg)*60):4;
+        var isLast=s===hist[hist.length-1];
+        h+='<div style="flex:1;display:flex;flex-direction:column;align-items:center">';
+        if(isLast)h+='<div style="font-size:9px;color:#f97316;font-weight:700;margin-bottom:2px">'+kg+'kg</div>';
+        h+='<div style="width:100%;background:'+(isLast?"#f97316":"#243324")+';border-radius:4px 4px 0 0;height:'+ht+'px;margin-top:'+(64-ht)+'px"></div>';
+        h+='<div style="font-size:7px;color:#3d5a3d;margin-top:3px">'+s.data.slice(5)+'</div></div>';
+      });
+      h+='</div>';
+      if(hist.length>1){
+        var kgIni=Math.max.apply(null,hist[0].series.map(function(x){return parseFloat(x.kg)||0;}));
+        var kgFim=Math.max.apply(null,hist[hist.length-1].series.map(function(x){return parseFloat(x.kg)||0;}));
+        var dif=kgFim-kgIni;
+        h+='<div style="font-size:12px;margin-top:8px;font-weight:700;color:'+(dif>0?"#4ade80":dif<0?"#f87171":"#7a9a7a")+'">'+(dif>0?"▲ +":(dif<0?"▼ ":"→ "))+Math.abs(dif)+'kg desde o início</div>';
+      }
+      h+='</div>';
+    }
+    h+='</div>';
+  }
+
   h+='<div class="card" style="margin-bottom:10px">'+tag("Exportar Log","#f97316");
   h+='<div style="font-size:13px;color:#7a9a7a;margin-top:8px;margin-bottom:14px;line-height:1.6">Gera resumo completo do progresso. Cole no Claude para análise.</div>';
   h+='<button class="btn-main" id="btn-export" onclick="exportLog()">COPIAR LOG COMPLETO</button></div>';
@@ -815,10 +873,33 @@ function salvarPesoCorpo(){
   if(btn){btn.textContent="✓";btn.style.background="#1a3a1a";btn.style.color="#4ade80";setTimeout(renderCorpo,1500);}
 }
 
+function copiarRelatorio(ini,fim){
+  var tSem=Object.keys(treinos).filter(function(k){return k>=ini&&k<=fim;});
+  var pSem=pesos.filter(function(p){return p.data>=ini&&p.data<=fim;});
+  var pMed=pSem.length?f1(pSem.reduce(function(s,p){return s+p.peso;},0)/pSem.length):null;
+  var prSem=Object.values(pressoes).filter(function(p){return p.data>=ini&&p.data<=fim;});
+  var dSeg=Object.keys(dietaLog).filter(function(k){return k>=ini&&k<=fim;}).filter(function(k){
+    var dd=dietaLog[k];return ['whey','cafe','almoco','lanche','jantar'].filter(function(id){return dd[id];}).length>=3;
+  }).length;
+  var lines=[];
+  lines.push("── RESUMO SEMANAL ────────────────");
+  lines.push("Semana: "+ini+" a "+fim);
+  lines.push("Treinos realizados: "+tSem.length+" ("+tSem.map(function(k){return treinos[k].dia;}).join(", ")+")");
+  lines.push("Peso médio: "+(pMed||"não registrado")+" kg");
+  lines.push("Dieta seguida (≥3 refeições): "+dSeg+"/7 dias");
+  lines.push("Pressões registradas: "+prSem.length);
+  if(prSem.length){prSem.forEach(function(p){lines.push("  "+p.data+(p.manha?" M:"+p.manha:"")+(p.noite?" N:"+p.noite:""));});}
+  if(pSem.length){lines.push("Pesos: "+pSem.map(function(p){return p.data.slice(5)+":"+f1(p.peso)+"kg";}).join(", "));}
+  lines.push("──────────────────────────────────");
+  var texto=lines.join("\n");
+  try{navigator.clipboard.writeText(texto);}catch(e){var el=document.createElement("textarea");el.value=texto;document.body.appendChild(el);el.select();document.execCommand("copy");document.body.removeChild(el);}
+  var btn=document.getElementById("btn-rel");
+  if(btn){btn.textContent="✓ COPIADO";btn.style.color="#eef5ee";setTimeout(renderHome,2500);}
+}
 function exportLog(){
   var lines=[];
   lines.push("=".repeat(43));
-  lines.push("  FERNANDO FIT — LOG DE PROGRESSO");
+  lines.push("  PERSONAL APP — LOG DE PROGRESSO");
   lines.push("  "+new Date().toLocaleDateString("pt-BR")+" "+new Date().toLocaleTimeString("pt-BR"));
   lines.push("=".repeat(43));
   lines.push("\n── PESO ──────────────────────────");
