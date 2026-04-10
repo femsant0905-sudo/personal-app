@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="theme-color" content="#f97316"/>
-<title>Fernando Fit</title>
+<title>Personal App</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
 body{background:#0a0f0a;color:#eef5ee;font-family:-apple-system,'Helvetica Neue',sans-serif;-webkit-font-smoothing:antialiased}
@@ -24,8 +24,6 @@ input,textarea,button{font-family:inherit}
 .inp{background:#0a0f0a;border:1px solid #243324;border-radius:12px;padding:12px 14px;color:#eef5ee;outline:none;width:100%}
 .btn-main{width:100%;padding:15px;background:linear-gradient(135deg,#f97316,#fbbf24);color:#0a0f0a;border-radius:14px;border:none;cursor:pointer;font-size:14px;font-weight:900;letter-spacing:.06em}
 .btn-sec{padding:10px 16px;background:#243324;color:#eef5ee;border-radius:10px;border:none;cursor:pointer;font-size:13px;font-weight:600}
-.check-row{display:flex;align-items:center;gap:14px;padding-bottom:14px;margin-bottom:14px;border-bottom:1px solid #1e2e1e;cursor:pointer}
-.check-row:last-child{border-bottom:none;padding-bottom:0;margin-bottom:0}
 .alert{background:#1a1200;border:1px solid #3d2e00;border-radius:14px;padding:11px 16px;margin-bottom:8px;font-size:13px;color:#fbbf24;display:flex;align-items:center;gap:10px}
 .alert-dot{width:7px;height:7px;border-radius:99px;background:#fbbf24;flex-shrink:0}
 .timer-big{font-size:48px;font-weight:900;font-family:monospace;color:#3d5a3d;letter-spacing:-.03em;line-height:1}
@@ -288,13 +286,6 @@ function renderDiario(){
   var fim=isWE(diarioData);
   var now=new Date(diarioData+"T12:00:00");
   var diaLabel=DIAS[now.getDay()]+", "+now.getDate()+" de "+MESES[now.getMonth()];
-  var checks=[
-    {k:"agua",   label:"Hidratação — mínimo 2,5L",cor:"#4ade80"},
-    {k:"treino", label:treinoHoje?"Treino Dia "+treinoHoje.dia+" concluído":fim?"Treino opcional hoje":"Treino realizado",cor:"#f97316",ro:true},
-    {k:"dieta",  label:fim?"Dieta — modo flex hoje":"Seguiu o plano alimentar",cor:"#4ade80"},
-    {k:"remedio",label:"Medicamentos tomados",cor:"#fbbf24"},
-    {k:"along",  label:"Alongamento noturno",cor:"#fb923c"}
-  ];
   var h='';
   h+='<div style="padding-top:28px;padding-bottom:16px"><div style="font-size:12px;color:#7a9a7a;font-weight:600;letter-spacing:.1em;text-transform:uppercase;margin-bottom:6px">Diário</div>';
   h+='<div style="font-size:22px;font-weight:900;letter-spacing:-.02em">'+diaLabel+(fim?' '+tag("Flex","#fbbf24"):'')+'</div></div>';
@@ -302,17 +293,6 @@ function renderDiario(){
   h+='<button class="btn-sec" style="font-size:18px" onclick="navDiario(-1)">‹</button>';
   h+='<button class="btn-sec" style="flex:1;'+(diarioData===hoje()?"background:#f9731622;color:#f97316;border:1px solid #f9731655":"")+'" onclick="navDiario(0)">'+(diarioData===hoje()?"HOJE":diaLabel.toUpperCase())+'</button>';
   h+='<button class="btn-sec" style="font-size:18px;color:'+(diarioData===hoje()?"#243324":"#7a9a7a")+'" onclick="navDiario(1)">›</button></div>';
-
-  h+='<div class="card" style="margin-bottom:10px">'+tag("Checklist","#f97316")+'<div style="margin-top:14px">';
-  checks.forEach(function(c){
-    var checked=c.ro?!!treinoHoje:!!entrada[c.k];
-    var onclick=c.ro?'':'onclick="toggleCheck(\''+c.k+'\')"';
-    h+='<div class="check-row" '+onclick+' style="'+(c.ro?"cursor:default":"") +'">';
-    h+='<div style="width:24px;height:24px;border-radius:7px;border:2px solid '+(checked?c.cor:"#3d5a3d")+';background:'+(checked?c.cor+"22":"transparent")+';flex-shrink:0;display:flex;align-items:center;justify-content:center">';
-    if(checked)h+='<div style="width:10px;height:10px;border-radius:3px;background:'+c.cor+'"></div>';
-    h+='</div><span style="font-size:14px;color:'+(checked?"#eef5ee":"#7a9a7a")+';font-weight:'+(checked?600:400)+'">'+c.label+'</span></div>';
-  });
-  h+='</div></div>';
 
   h+='<div class="card" style="border-left:3px solid #f97316;margin-bottom:10px">'+tag("Peso","#f97316");
   h+='<div style="display:flex;gap:8px;margin-top:12px"><input class="inp" id="inp-peso" type="number" step="0.1" placeholder="'+(pesoReg?pesoReg.peso:"kg")+'" value="'+(pesoReg?pesoReg.peso:"")+'" style="font-size:22px;font-family:monospace"/></div>';
@@ -339,11 +319,6 @@ function navDiario(delta){
   if(delta===0){diarioData=hoje();}
   else{var d=new Date(diarioData+"T12:00:00");d.setDate(d.getDate()+delta);var iso=d.toISOString().split("T")[0];if(iso<=hoje())diarioData=iso;}
   renderDiario();
-}
-function toggleCheck(k){
-  if(!diario[diarioData])diario[diarioData]={};
-  diario[diarioData][k]=!diario[diarioData][k];
-  save();renderDiario();
 }
 function salvarDiario(){
   var pesoVal=parseFloat(document.getElementById("inp-peso").value);
