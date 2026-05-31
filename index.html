@@ -1193,15 +1193,32 @@ async function pullPlano(){
 }
 
 // ── ADMIN: editor de treino (só admin) ────────────────────────────────────────
-var planoEdit=null,adminMsg="";
-function openAdmin(){
+var planoEdit=null,adminMsg="",adminUsers=[],adminAlvo=null;
+async function openAdmin(){
   if(!currentUser||currentUser.role!=="admin")return;
-  planoEdit=JSON.parse(JSON.stringify(TREINOS));
-  adminMsg="";
   document.querySelectorAll(".page").forEach(function(p){p.classList.remove("active");});
   document.getElementById("pg-admin").classList.add("active");
-  curPage="admin";renderAdmin();window.scrollTo(0,0);
+  curPage="admin";adminMsg="";planoEdit=null;
+  adminAlvo={id:currentUser.id,nome:primeiroNome()};
+  renderAdmin();window.scrollTo(0,0);
+  await carregarUsuarios();
+  await carregarPlanoAlvo();
 }
+async function carregarUsuarios(){
+  try{var res=await sb.from("profiles").select("id,nome,role");adminUsers=res.data||[];}catch(e){adminUsers=[];}
+  adminUsers.sort(function(a,b){return a.id===currentUser.id?-1:b.id===currentUser.id?1:0;}); // você primeiro
+  renderAdmin();
+}
+async function carregarPlanoAlvo(){
+  if(!adminAlvo)return;
+  try{
+    var res=await sb.from("planos_treino").select("plano").eq("user_id",adminAlvo.id).maybeSingle();
+    if(res.data&&Array.isArray(res.data.plano)&&res.data.plano.length)planoEdit=JSON.parse(JSON.stringify(res.data.plano));
+    else planoEdit=JSON.parse(JSON.stringify(TREINOS_PADRAO));
+  }catch(e){planoEdit=JSON.parse(JSON.stringify(TREINOS_PADRAO));}
+  renderAdmin();
+}
+function selecionarCliente(ix){var u=adminUsers[ix];if(!u)return;adminAlvo={id:u.id,nome:(u.nome||"Cliente").split(" ")[0]};adminMsg="";planoEdit=null;renderAdmin();carregarPlanoAlvo();}
 function setExCampo(d,i,campo,v){if(planoEdit&&planoEdit[d]&&planoEdit[d].ex[i])planoEdit[d].ex[i][campo]=v;}
 function addEx(d){if(planoEdit&&planoEdit[d]){planoEdit[d].ex.push({nome:"",s:3,r:"12",desc:""});renderAdmin();}}
 function rmEx(d,i){if(planoEdit&&planoEdit[d]){planoEdit[d].ex.splice(i,1);renderAdmin();}}
@@ -1213,18 +1230,27 @@ async function salvarPlano(){
     });
   });
   adminMsg="Salvando...";renderAdmin();
-  var r=await sb.from("planos_treino").upsert({user_id:currentUser.id,plano:planoEdit,criado_por:currentUser.id,updated_at:new Date().toISOString()});
+  var r=await sb.from("planos_treino").upsert({user_id:adminAlvo.id,plano:planoEdit,criado_por:currentUser.id,updated_at:new Date().toISOString()});
   if(r.error){adminMsg="Erro ao salvar: "+r.error.message;renderAdmin();return;}
-  TREINOS=JSON.parse(JSON.stringify(planoEdit));
-  adminMsg="Treino salvo ✓";renderAdmin();
+  if(adminAlvo.id===currentUser.id)TREINOS=JSON.parse(JSON.stringify(planoEdit)); // se for o seu, aplica já
+  adminMsg="Treino de "+adminAlvo.nome+" salvo ✓";renderAdmin();
 }
 function renderAdmin(){
   var h='';
   h+='<div style="display:flex;align-items:center;gap:12px;padding-top:24px;padding-bottom:16px">';
   h+='<button style="background:none;border:none;color:#7a9a7a;cursor:pointer;font-size:15px;padding:0" onclick="goTo(\'home\')">← Voltar</button>';
   h+='<div style="flex:1"><div style="font-size:20px;font-weight:900">Montar Treino</div>';
-  h+='<div style="font-size:12px;color:#7a9a7a">Editando: '+primeiroNome()+' (você)</div></div></div>';
+  h+='<div style="font-size:12px;color:#7a9a7a">Cliente: '+(adminAlvo?adminAlvo.nome:'—')+(adminAlvo&&adminAlvo.id===currentUser.id?' (você)':'')+'</div></div></div>';
+  h+='<div style="font-size:10px;color:#7a9a7a;font-weight:700;letter-spacing:.08em;text-transform:uppercase;margin-bottom:6px">Escolha o cliente</div>';
+  h+='<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px">';
+  if(!adminUsers.length)h+='<span style="font-size:12px;color:#7a9a7a">Carregando...</span>';
+  adminUsers.forEach(function(u,ix){
+    var nm=(u.nome||"Cliente").split(" ")[0];
+    h+='<button class="pill '+(adminAlvo&&adminAlvo.id===u.id?"active":"")+'" onclick="selecionarCliente('+ix+')">'+nm+(u.role==="admin"?" ⚙":"")+'</button>';
+  });
+  h+='</div>';
   if(adminMsg)h+='<div style="font-size:13px;color:'+(adminMsg.indexOf("Erro")>=0?"#f87171":"#4ade80")+';margin-bottom:10px;font-weight:700">'+adminMsg+'</div>';
+  if(!planoEdit){h+='<div style="font-size:13px;color:#7a9a7a;padding:18px 0">Carregando treino...</div>';document.getElementById("pg-admin").innerHTML=h;return;}
   (planoEdit||[]).forEach(function(dia,d){
     h+='<div class="card" style="margin-bottom:10px">';
     h+='<div style="font-size:15px;font-weight:800;margin-bottom:2px">Dia '+dia.id+' — '+dia.nome+'</div>';
