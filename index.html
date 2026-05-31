@@ -213,14 +213,15 @@ function uk(k){return "u_"+(currentUser?currentUser.id:"anon")+"_"+k;}
 function sget(k,d){try{var v=localStorage.getItem(uk(k));return v?JSON.parse(v):d;}catch(e){return d;}}
 function sset(k,v){try{localStorage.setItem(uk(k),JSON.stringify(v));}catch(e){}}
 
-var pesos,dietaLog,treinos,pressoes,diario,cargaHist;
+var pesos,dietaLog,treinos,pressoes,diario,cargaHist,referencias;
 function loadUserData(){
-  pesos     = sget("ff_pesos",    []);
-  dietaLog  = sget("ff_dieta",    {});
-  treinos   = sget("ff_treinos",  {});
-  pressoes  = sget("ff_pressoes", {});
-  diario    = sget("ff_diario",   {});
-  cargaHist = sget("ff_cargas",   {}); // {exNome: [{data, series:[{s,kg,reps}]}]}
+  pesos       = sget("ff_pesos",       []);
+  dietaLog    = sget("ff_dieta",       {});
+  treinos     = sget("ff_treinos",     {});
+  pressoes    = sget("ff_pressoes",    {});
+  diario      = sget("ff_diario",      {});
+  cargaHist   = sget("ff_cargas",      {}); // {exNome: [{data, series:[{s,kg,reps}]}]}
+  referencias = sget("ff_referencias", {itens:[],nota:""}); // dados médicos de referência por usuário
 }
 
 function save(){
@@ -228,10 +229,12 @@ function save(){
   sset("ff_pesos",pesos); sset("ff_dieta",dietaLog);
   sset("ff_treinos",treinos); sset("ff_pressoes",pressoes);
   sset("ff_diario",diario); sset("ff_cargas",cargaHist);
+  sset("ff_referencias",referencias);
   // 2) espelha pro Supabase em segundo plano
   pushCloud("ff_pesos",pesos); pushCloud("ff_dieta",dietaLog);
   pushCloud("ff_treinos",treinos); pushCloud("ff_pressoes",pressoes);
   pushCloud("ff_diario",diario); pushCloud("ff_cargas",cargaHist);
+  pushCloud("ff_referencias",referencias);
 }
 
 // envia um bloco pro Supabase (não bloqueia a tela; se falhar, fica só no aparelho)
@@ -856,6 +859,20 @@ function toggleRefeicao(id){if(!dietaLog[hoje()])dietaLog[hoje()]={};dietaLog[ho
 
 // ── CORPO ────────────────────────────────────────────────────────────────────
 var corpoExSel=null;
+var refEdit=false;
+function toggleRefEdit(){
+  if(!referencias)referencias={itens:[],nota:""};
+  if(!refEdit&&!referencias.itens.length)referencias.itens.push({label:"",valor:""});
+  refEdit=!refEdit;renderCorpo();
+}
+function addRefLinha(){if(!referencias)referencias={itens:[],nota:""};referencias.itens.push({label:"",valor:""});renderCorpo();}
+function rmRefLinha(i){if(referencias&&referencias.itens)referencias.itens.splice(i,1);renderCorpo();}
+function setRefCampo(i,campo,v){if(referencias&&referencias.itens[i])referencias.itens[i][campo]=v;}
+function setRefNota(v){if(!referencias)referencias={itens:[],nota:""};referencias.nota=v;}
+function salvarRef(){
+  if(referencias&&referencias.itens)referencias.itens=referencias.itens.filter(function(x){return (x.label||"").trim()||(x.valor||"").trim();});
+  save();refEdit=false;renderCorpo();
+}
 function setCorpoEx(nome){corpoExSel=corpoExSel===nome?null:nome;renderCorpo();}
 function renderCorpo(){
   var ult=pesos.slice(-14);
@@ -898,11 +915,34 @@ function renderCorpo(){
     h+='</div></div>';
   }
 
-  h+='<div class="card" style="margin-bottom:10px">'+tag("Dados de referência")+'<div style="margin-top:14px">';
-  [["Pressão arterial","128/95","#fbbf24"],["Score de cálcio","115.9 — percentil 90","#fbbf24"],["LDL","46 mg/dL","#4ade80"],["HDL","51 mg/dL","#4ade80"],["Glicose","90 mg/dL","#4ade80"],['Circunf. abdominal','45"',"#f87171"]].forEach(function(x,i,arr){
-    h+='<div style="display:flex;justify-content:space-between;align-items:center;padding-bottom:10px;margin-bottom:10px;border-bottom:'+(i<arr.length-1?"1px solid #1e2e1e":"none")+'"><span style="font-size:13px;color:#7a9a7a">'+x[0]+'</span><span style="font-size:13px;font-weight:700;color:'+x[2]+'">'+x[1]+'</span></div>';
-  });
-  h+='<div style="font-size:12px;color:#4ade80;background:#1a3a1a;border-radius:12px;padding:10px 14px;margin-top:4px;line-height:1.6;border:1px solid #4ade8033">Agendar cardiologista em Nova York — acompanhamento do score de cálcio.</div>';
+  var ref=referencias||{itens:[],nota:""};
+  h+='<div class="card" style="margin-bottom:10px">';
+  h+='<div style="display:flex;justify-content:space-between;align-items:center">'+tag("Dados de referência");
+  h+='<div style="font-size:12px;color:#f97316;cursor:pointer;font-weight:700" onclick="toggleRefEdit()">'+(refEdit?"Concluir":"Editar")+'</div></div>';
+  h+='<div style="margin-top:14px">';
+  if(refEdit){
+    (ref.itens||[]).forEach(function(it,i){
+      h+='<div style="display:flex;gap:6px;margin-bottom:8px;align-items:center">';
+      h+='<input class="inp" value="'+(it.label||"").replace(/"/g,"&quot;")+'" oninput="setRefCampo('+i+',\'label\',this.value)" placeholder="Ex: LDL" style="flex:1;padding:9px 10px;font-size:13px"/>';
+      h+='<input class="inp" value="'+(it.valor||"").replace(/"/g,"&quot;")+'" oninput="setRefCampo('+i+',\'valor\',this.value)" placeholder="Ex: 46 mg/dL" style="flex:1;padding:9px 10px;font-size:13px"/>';
+      h+='<button onclick="rmRefLinha('+i+')" style="background:#3a1a1a;color:#f87171;border:none;border-radius:8px;width:34px;height:34px;cursor:pointer;font-size:14px;flex-shrink:0">✕</button>';
+      h+='</div>';
+    });
+    h+='<button onclick="addRefLinha()" style="width:100%;padding:9px;background:#243324;color:#7a9a7a;border:none;border-radius:9px;cursor:pointer;font-size:12px;font-weight:700;margin-bottom:12px">+ Adicionar linha</button>';
+    h+='<div style="font-size:10px;color:#7a9a7a;font-weight:700;letter-spacing:.08em;text-transform:uppercase;margin-bottom:6px">Observação</div>';
+    h+='<textarea oninput="setRefNota(this.value)" rows="2" placeholder="Ex: agendar cardiologista...">'+(ref.nota||"")+'</textarea>';
+    h+='<button class="btn-main" onclick="salvarRef()" style="margin-top:12px">SALVAR</button>';
+  } else {
+    var itens=(ref.itens||[]).filter(function(x){return (x.label||"").trim()||(x.valor||"").trim();});
+    if(itens.length){
+      itens.forEach(function(x,i,arr){
+        h+='<div style="display:flex;justify-content:space-between;align-items:center;padding-bottom:10px;margin-bottom:10px;border-bottom:'+(i<arr.length-1?"1px solid #1e2e1e":"none")+'"><span style="font-size:13px;color:#7a9a7a">'+x.label+'</span><span style="font-size:13px;font-weight:700;color:#eef5ee">'+x.valor+'</span></div>';
+      });
+      if((ref.nota||"").trim())h+='<div style="font-size:12px;color:#4ade80;background:#1a3a1a;border-radius:12px;padding:10px 14px;margin-top:4px;line-height:1.6;border:1px solid #4ade8033">'+ref.nota+'</div>';
+    } else {
+      h+='<div style="font-size:13px;color:#7a9a7a;line-height:1.6">Adicione seus exames e medidas de referência — pressão, colesterol, glicose... Toque em <b style="color:#f97316">Editar</b>.</div>';
+    }
+  }
   h+='</div></div>';
 
   var exComHist=Object.keys(cargaHist).filter(function(k){return cargaHist[k]&&cargaHist[k].length>0;});
