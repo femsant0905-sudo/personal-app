@@ -224,9 +224,32 @@ function loadUserData(){
 }
 
 function save(){
+  // 1) salva no aparelho na hora (instantâneo, funciona offline)
   sset("ff_pesos",pesos); sset("ff_dieta",dietaLog);
   sset("ff_treinos",treinos); sset("ff_pressoes",pressoes);
   sset("ff_diario",diario); sset("ff_cargas",cargaHist);
+  // 2) espelha pro Supabase em segundo plano
+  pushCloud("ff_pesos",pesos); pushCloud("ff_dieta",dietaLog);
+  pushCloud("ff_treinos",treinos); pushCloud("ff_pressoes",pressoes);
+  pushCloud("ff_diario",diario); pushCloud("ff_cargas",cargaHist);
+}
+
+// envia um bloco pro Supabase (não bloqueia a tela; se falhar, fica só no aparelho)
+function pushCloud(chave,valor){
+  if(!currentUser)return;
+  try{
+    sb.from("user_data").upsert({user_id:currentUser.id,chave:chave,valor:valor,updated_at:new Date().toISOString()}).then(function(){},function(){});
+  }catch(e){}
+}
+
+// puxa todos os blocos do Supabase pro aparelho (no login / troca de aparelho)
+async function pullCloud(){
+  if(!currentUser)return;
+  try{
+    var res=await sb.from("user_data").select("chave,valor").eq("user_id",currentUser.id);
+    if(res.error||!res.data)return;
+    res.data.forEach(function(row){if(row.valor!=null)sset(row.chave,row.valor);});
+  }catch(e){}
 }
 
 // ── UTILS ────────────────────────────────────────────────────────────────────
@@ -1048,11 +1071,16 @@ async function doLogin(){
 }
 function val(id){var e=document.getElementById(id);return e?e.value:"";}
 
-function enterApp(){
+async function enterApp(){
   document.getElementById("auth-screen").style.display="none";
   document.querySelector(".nav").style.display="block";
+  // mostra os dados locais na hora...
   loadUserData();
   goTo("home");
+  // ...e atualiza com o que está na nuvem
+  await pullCloud();
+  loadUserData();
+  goTo(curPage);
 }
 
 // ── INIT ─────────────────────────────────────────────────────────────────────
