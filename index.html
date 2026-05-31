@@ -37,6 +37,7 @@ textarea{background:#0a0f0a;border:1px solid #243324;border-radius:12px;padding:
 </head>
 <body>
 <div id="auth-screen"></div>
+<input type="file" id="pdf-input" accept="application/pdf" style="display:none" onchange="importarPDF(event)"/>
 <div id="pg-home"   class="page active"></div>
 <div id="pg-diario" class="page"></div>
 <div id="pg-treino" class="page"></div>
@@ -860,6 +861,45 @@ function toggleRefeicao(id){if(!dietaLog[hoje()])dietaLog[hoje()]={};dietaLog[ho
 // ── CORPO ────────────────────────────────────────────────────────────────────
 var corpoExSel=null;
 var refEdit=false;
+var pdfStatus="";
+
+// lê um exame em PDF, manda pro Supabase/Claude e traz os dados pra conferência
+function fileToBase64(file){
+  return new Promise(function(res,rej){
+    var r=new FileReader();
+    r.onload=function(){var s=String(r.result);res(s.substring(s.indexOf(",")+1));};
+    r.onerror=rej;
+    r.readAsDataURL(file);
+  });
+}
+async function importarPDF(ev){
+  var file=ev.target.files&&ev.target.files[0];
+  ev.target.value="";
+  if(!file)return;
+  if(file.type!=="application/pdf")return alert("Envie um arquivo PDF.");
+  if(file.size>15*1024*1024)return alert("PDF muito grande (máx. 15MB).");
+  pdfStatus="Lendo o exame... pode levar alguns segundos.";renderCorpo();
+  try{
+    var b64=await fileToBase64(file);
+    var sess=await sb.auth.getSession();
+    var token=sess.data&&sess.data.session&&sess.data.session.access_token;
+    var resp=await fetch(SUPABASE_URL+"/functions/v1/ler-exame",{
+      method:"POST",
+      headers:{"Content-Type":"application/json","Authorization":"Bearer "+token},
+      body:JSON.stringify({pdf_base64:b64})
+    });
+    var data=await resp.json();
+    pdfStatus="";
+    if(!resp.ok){renderCorpo();return alert(data.erro||"Erro ao ler o exame.");}
+    var novos=(data.itens||[]).filter(function(x){return (x.label||"").trim()||(x.valor||"").trim();});
+    if(!novos.length){renderCorpo();return alert("Não encontrei valores nesse exame.");}
+    if(!referencias)referencias={itens:[],nota:""};
+    referencias.itens=referencias.itens.concat(novos);
+    if(data.nota&&!(referencias.nota||"").trim())referencias.nota=data.nota;
+    refEdit=true; // entra em modo edição pra você conferir antes de salvar
+    renderCorpo();
+  }catch(e){pdfStatus="";renderCorpo();alert("Falha ao enviar o exame.");}
+}
 function toggleRefEdit(){
   if(!referencias)referencias={itens:[],nota:""};
   if(!refEdit&&!referencias.itens.length)referencias.itens.push({label:"",valor:""});
@@ -920,6 +960,8 @@ function renderCorpo(){
   h+='<div style="display:flex;justify-content:space-between;align-items:center">'+tag("Dados de referência");
   h+='<div style="font-size:12px;color:#f97316;cursor:pointer;font-weight:700" onclick="toggleRefEdit()">'+(refEdit?"Concluir":"Editar")+'</div></div>';
   h+='<div style="margin-top:14px">';
+  h+='<button onclick="document.getElementById(\'pdf-input\').click()" '+(pdfStatus?'disabled':'')+' style="width:100%;padding:11px;background:#10243a;color:#7ab8f0;border:1px solid #24496e;border-radius:10px;cursor:pointer;font-size:12px;font-weight:800;letter-spacing:.04em;margin-bottom:12px;opacity:'+(pdfStatus?'.5':'1')+'">📄 IMPORTAR EXAME (PDF)</button>';
+  if(pdfStatus)h+='<div style="font-size:12px;color:#fbbf24;margin-bottom:12px;line-height:1.5">'+pdfStatus+'</div>';
   if(refEdit){
     (ref.itens||[]).forEach(function(it,i){
       h+='<div style="display:flex;gap:6px;margin-bottom:8px;align-items:center">';
