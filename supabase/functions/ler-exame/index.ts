@@ -17,7 +17,7 @@ const MODEL = "claude-sonnet-4-6"; // Sonnet: preciso o suficiente pra dado méd
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, content-type, apikey",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
