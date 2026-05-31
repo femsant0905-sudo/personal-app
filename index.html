@@ -881,16 +881,16 @@ async function importarPDF(ev){
   pdfStatus="Lendo o exame... pode levar alguns segundos.";renderCorpo();
   try{
     var b64=await fileToBase64(file);
-    var sess=await sb.auth.getSession();
-    var token=sess.data&&sess.data.session&&sess.data.session.access_token;
-    var resp=await fetch(SUPABASE_URL+"/functions/v1/ler-exame",{
-      method:"POST",
-      headers:{"Content-Type":"application/json","Authorization":"Bearer "+token},
-      body:JSON.stringify({pdf_base64:b64})
-    });
-    var data=await resp.json();
+    // usa o cliente do Supabase: envia apikey + token automaticamente
+    var r=await sb.functions.invoke("ler-exame",{body:{pdf_base64:b64}});
     pdfStatus="";
-    if(!resp.ok){renderCorpo();return alert(data.erro||"Erro ao ler o exame.");}
+    if(r.error){
+      renderCorpo();
+      var msg=r.error.message||"";
+      try{if(r.error.context&&r.error.context.json){var j=await r.error.context.json();if(j&&j.erro)msg=j.erro;}}catch(_e){}
+      return alert("Erro ao ler o exame: "+msg);
+    }
+    var data=r.data||{};
     var novos=(data.itens||[]).filter(function(x){return (x.label||"").trim()||(x.valor||"").trim();});
     if(!novos.length){renderCorpo();return alert("Não encontrei valores nesse exame.");}
     if(!referencias)referencias={itens:[],nota:""};
@@ -898,7 +898,7 @@ async function importarPDF(ev){
     if(data.nota&&!(referencias.nota||"").trim())referencias.nota=data.nota;
     refEdit=true; // entra em modo edição pra você conferir antes de salvar
     renderCorpo();
-  }catch(e){pdfStatus="";renderCorpo();alert("Falha ao enviar o exame.");}
+  }catch(e){pdfStatus="";renderCorpo();alert("Falha ao enviar o exame: "+(e&&e.message?e.message:e));}
 }
 function toggleRefEdit(){
   if(!referencias)referencias={itens:[],nota:""};
