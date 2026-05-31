@@ -6,6 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="theme-color" content="#f97316"/>
 <link rel="manifest" href="manifest.json"/>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <title>Personal App</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
@@ -170,33 +171,42 @@ var ALONGAMENTOS = [
   ]}
 ];
 
-// ── AUTH (local — será substituído por Supabase na próxima fase) ──────────────
-// IMPORTANTE: senha em texto puro aqui é TEMPORÁRIO, só pra testar o fluxo.
-// Quando o Supabase entrar, ele cuida da senha com segurança de verdade.
-function getUsers(){try{return JSON.parse(localStorage.getItem("pa_users")||"[]");}catch(e){return [];}}
-function setUsers(u){localStorage.setItem("pa_users",JSON.stringify(u));}
+// ── AUTH (Supabase) ───────────────────────────────────────────────────────────
+var SUPABASE_URL="https://xyhstixqyhvgngkpkimv.supabase.co";
+var SUPABASE_ANON="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh5aHN0aXhxeWh2Z25na3BraW12Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAxNzg2MTEsImV4cCI6MjA5NTc1NDYxMX0._vCp1lYIauQ3HPoQvvSyYA8YFmypx_O9o8H0BYCFFNU";
+var sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_ANON);
 var currentUser=null;
 
-function registrar(nome,email,senha){
-  email=(email||"").trim().toLowerCase();nome=(nome||"").trim();
-  if(!nome||!email||!senha)return {erro:"Preencha todos os campos."};
-  var users=getUsers();
-  if(users.some(function(u){return u.email===email;}))return {erro:"Esse e-mail já tem conta."};
-  // primeiro a se cadastrar vira admin (você); os demais viram cliente
-  var role=users.length===0?"admin":"cliente";
-  var user={id:"u"+(users.length+1)+"_"+email.split("@")[0],nome:nome,email:email,senha:senha,role:role};
-  users.push(user);setUsers(users);
-  return {user:user};
+function traduzErro(error){
+  var m=((error&&error.message)||"").toLowerCase();
+  if(m.indexOf("invalid login")>=0)return "E-mail ou senha incorretos.";
+  if(m.indexOf("already registered")>=0||m.indexOf("already exists")>=0||m.indexOf("user already")>=0)return "Esse e-mail já tem conta.";
+  if(m.indexOf("password")>=0)return "Senha precisa de pelo menos 6 caracteres.";
+  if(m.indexOf("valid email")>=0||m.indexOf("invalid email")>=0)return "E-mail inválido.";
+  if(m.indexOf("confirm")>=0)return "Confirme o e-mail (ou desligue a confirmação no Supabase).";
+  return (error&&error.message)||"Erro ao conectar.";
 }
-function entrar(email,senha){
-  email=(email||"").trim().toLowerCase();
-  var u=getUsers().filter(function(x){return x.email===email&&x.senha===senha;})[0];
-  if(!u)return {erro:"E-mail ou senha incorretos."};
-  return {user:u};
+
+async function registrarSb(nome,email,senha){
+  var res=await sb.auth.signUp({email:(email||"").trim(),password:senha,options:{data:{nome:(nome||"").trim()}}});
+  if(res.error)return {erro:traduzErro(res.error)};
+  if(!res.data.session)return {erro:"Conta criada, mas precisa confirmar o e-mail."};
+  return {ok:true};
 }
-function setSession(id){localStorage.setItem("pa_session",id);}
-function getSession(){var id=localStorage.getItem("pa_session");if(!id)return null;return getUsers().filter(function(u){return u.id===id;})[0]||null;}
-function logout(){localStorage.removeItem("pa_session");currentUser=null;document.querySelector(".nav").style.display="none";renderAuth();}
+async function entrarSb(email,senha){
+  var res=await sb.auth.signInWithPassword({email:(email||"").trim(),password:senha});
+  if(res.error)return {erro:traduzErro(res.error)};
+  return {ok:true};
+}
+async function carregarPerfil(){
+  var u=await sb.auth.getUser();
+  var user=u.data&&u.data.user;
+  if(!user)return null;
+  var p=await sb.from("profiles").select("nome,role").eq("id",user.id).single();
+  var perfil=p.data||{};
+  return {id:user.id,email:user.email,nome:perfil.nome||user.email.split("@")[0],role:perfil.role||"cliente"};
+}
+async function logout(){await sb.auth.signOut();currentUser=null;document.querySelector(".nav").style.display="none";renderAuth();}
 
 // ── STORAGE (isolado por usuário) ─────────────────────────────────────────────
 function uk(k){return "u_"+(currentUser?currentUser.id:"anon")+"_"+k;}
@@ -1022,15 +1032,19 @@ function renderAuth(){
   el.innerHTML=h;el.style.display="block";
 }
 
-function doRegister(){
-  var r=registrar(val("auth-nome"),val("auth-email"),val("auth-senha"));
+async function doRegister(){
+  showErro("Criando conta...");
+  var r=await registrarSb(val("auth-nome"),val("auth-email"),val("auth-senha"));
   if(r.erro)return showErro(r.erro);
-  currentUser=r.user;setSession(r.user.id);enterApp();
+  currentUser=await carregarPerfil();
+  enterApp();
 }
-function doLogin(){
-  var r=entrar(val("auth-email"),val("auth-senha"));
+async function doLogin(){
+  showErro("Entrando...");
+  var r=await entrarSb(val("auth-email"),val("auth-senha"));
   if(r.erro)return showErro(r.erro);
-  currentUser=r.user;setSession(r.user.id);enterApp();
+  currentUser=await carregarPerfil();
+  enterApp();
 }
 function val(id){var e=document.getElementById(id);return e?e.value:"";}
 
@@ -1045,8 +1059,8 @@ function enterApp(){
 if('serviceWorker' in navigator){
   navigator.serviceWorker.register('./service-worker.js');
 }
-function boot(){
-  currentUser=getSession();
+async function boot(){
+  currentUser=await carregarPerfil();
   if(currentUser){enterApp();}
   else{document.querySelector(".nav").style.display="none";renderAuth();}
 }
