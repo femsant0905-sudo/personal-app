@@ -35,6 +35,7 @@ textarea{background:#0a0f0a;border:1px solid #243324;border-radius:12px;padding:
 </style>
 </head>
 <body>
+<div id="auth-screen"></div>
 <div id="pg-home"   class="page active"></div>
 <div id="pg-diario" class="page"></div>
 <div id="pg-treino" class="page"></div>
@@ -42,7 +43,7 @@ textarea{background:#0a0f0a;border:1px solid #243324;border-radius:12px;padding:
 <div id="pg-dieta"  class="page"></div>
 <div id="pg-corpo"  class="page"></div>
 
-<div class="nav">
+<div class="nav" style="display:none">
   <div class="nav-inner">
     <button class="nav-btn active" onclick="goTo('home')">Início</button>
     <button class="nav-btn" onclick="goTo('diario')">Diário</button>
@@ -169,16 +170,48 @@ var ALONGAMENTOS = [
   ]}
 ];
 
-// ── STORAGE ──────────────────────────────────────────────────────────────────
-function sget(k,d){try{var v=localStorage.getItem(k);return v?JSON.parse(v):d;}catch(e){return d;}}
-function sset(k,v){try{localStorage.setItem(k,JSON.stringify(v));}catch(e){}}
+// ── AUTH (local — será substituído por Supabase na próxima fase) ──────────────
+// IMPORTANTE: senha em texto puro aqui é TEMPORÁRIO, só pra testar o fluxo.
+// Quando o Supabase entrar, ele cuida da senha com segurança de verdade.
+function getUsers(){try{return JSON.parse(localStorage.getItem("pa_users")||"[]");}catch(e){return [];}}
+function setUsers(u){localStorage.setItem("pa_users",JSON.stringify(u));}
+var currentUser=null;
 
-var pesos      = sget("ff_pesos",    [{data:hoje(),peso:118.5}]);
-var dietaLog   = sget("ff_dieta",    {});
-var treinos    = sget("ff_treinos",  {});
-var pressoes   = sget("ff_pressoes", {});
-var diario     = sget("ff_diario",   {});
-var cargaHist  = sget("ff_cargas",   {}); // {exNome: [{data, series:[{s,kg,reps}]}]}
+function registrar(nome,email,senha){
+  email=(email||"").trim().toLowerCase();nome=(nome||"").trim();
+  if(!nome||!email||!senha)return {erro:"Preencha todos os campos."};
+  var users=getUsers();
+  if(users.some(function(u){return u.email===email;}))return {erro:"Esse e-mail já tem conta."};
+  // primeiro a se cadastrar vira admin (você); os demais viram cliente
+  var role=users.length===0?"admin":"cliente";
+  var user={id:"u"+(users.length+1)+"_"+email.split("@")[0],nome:nome,email:email,senha:senha,role:role};
+  users.push(user);setUsers(users);
+  return {user:user};
+}
+function entrar(email,senha){
+  email=(email||"").trim().toLowerCase();
+  var u=getUsers().filter(function(x){return x.email===email&&x.senha===senha;})[0];
+  if(!u)return {erro:"E-mail ou senha incorretos."};
+  return {user:u};
+}
+function setSession(id){localStorage.setItem("pa_session",id);}
+function getSession(){var id=localStorage.getItem("pa_session");if(!id)return null;return getUsers().filter(function(u){return u.id===id;})[0]||null;}
+function logout(){localStorage.removeItem("pa_session");currentUser=null;document.querySelector(".nav").style.display="none";renderAuth();}
+
+// ── STORAGE (isolado por usuário) ─────────────────────────────────────────────
+function uk(k){return "u_"+(currentUser?currentUser.id:"anon")+"_"+k;}
+function sget(k,d){try{var v=localStorage.getItem(uk(k));return v?JSON.parse(v):d;}catch(e){return d;}}
+function sset(k,v){try{localStorage.setItem(uk(k),JSON.stringify(v));}catch(e){}}
+
+var pesos,dietaLog,treinos,pressoes,diario,cargaHist;
+function loadUserData(){
+  pesos     = sget("ff_pesos",    []);
+  dietaLog  = sget("ff_dieta",    {});
+  treinos   = sget("ff_treinos",  {});
+  pressoes  = sget("ff_pressoes", {});
+  diario    = sget("ff_diario",   {});
+  cargaHist = sget("ff_cargas",   {}); // {exNome: [{data, series:[{s,kg,reps}]}]}
+}
 
 function save(){
   sset("ff_pesos",pesos); sset("ff_dieta",dietaLog);
@@ -188,6 +221,8 @@ function save(){
 
 // ── UTILS ────────────────────────────────────────────────────────────────────
 function hoje(){return new Date().toISOString().split("T")[0];}
+function saudacao(){var hh=new Date().getHours();return hh<12?"Bom dia":hh<18?"Boa tarde":"Boa noite";}
+function primeiroNome(){return currentUser&&currentUser.nome?currentUser.nome.split(" ")[0]:"";}
 function f1(n){return Number(n).toFixed(1);}
 function pct(v,t){return Math.min(100,Math.round(v/t*100));}
 function fmtD(iso){var d=new Date(iso+"T12:00:00");return d.getDate()+" "+MESES[d.getMonth()].slice(0,3);}
@@ -273,9 +308,12 @@ function renderHome(){
   var medidoHoje=pressaoHoje&&(pressaoHoje.manha||pressaoHoje.noite);
 
   var h='';
-  h+='<div style="padding-top:28px;padding-bottom:20px">';
+  h+='<div style="display:flex;justify-content:space-between;align-items:center;padding-top:24px;margin-bottom:6px">';
+  h+=tag(currentUser.role==="admin"?"Admin":"Cliente",currentUser.role==="admin"?"#f97316":"#4ade80");
+  h+='<div style="font-size:12px;color:#7a9a7a;cursor:pointer" onclick="logout()">Sair ›</div></div>';
+  h+='<div style="padding-bottom:20px">';
   h+='<div style="font-size:12px;color:#7a9a7a;font-weight:600;letter-spacing:.1em;text-transform:uppercase;margin-bottom:6px">'+diaStr+'</div>';
-  h+='<div style="font-size:28px;font-weight:900;letter-spacing:-.03em;line-height:1.1">Bom dia,<br><span style="color:#f97316">Fernando.</span></div></div>';
+  h+='<div style="font-size:28px;font-weight:900;letter-spacing:-.03em;line-height:1.1">'+saudacao()+',<br><span style="color:#f97316">'+primeiroNome()+'.</span></div></div>';
   if(!pesouHoje) h+='<div class="alert"><div class="alert-dot"></div>Registre seu peso hoje</div>';
   if(!medidoHoje)h+='<div class="alert"><div class="alert-dot"></div>Meça a pressão arterial hoje</div>';
 
@@ -956,11 +994,63 @@ function exportLog(){
   if(btn){btn.textContent="✓ COPIADO — COLE NO CLAUDE";btn.style.background="#1a3a1a";btn.style.color="#4ade80";btn.style.border="1px solid #4ade80";setTimeout(renderCorpo,3000);}
 }
 
+// ── AUTH SCREEN ──────────────────────────────────────────────────────────────
+var authMode="entrar"; // "entrar" ou "criar"
+function setAuthMode(m){authMode=m;renderAuth();}
+function showErro(msg){var e=document.getElementById("auth-erro");if(e)e.textContent=msg;}
+
+function renderAuth(){
+  document.querySelectorAll(".page").forEach(function(p){p.classList.remove("active");});
+  var criar=authMode==="criar";
+  var h='';
+  h+='<div style="max-width:380px;margin:0 auto;padding:64px 22px">';
+  h+='<div style="text-align:center;margin-bottom:36px">';
+  h+='<div style="font-size:30px;font-weight:900;letter-spacing:-.03em">Personal <span style="color:#f97316">App</span></div>';
+  h+='<div style="font-size:13px;color:#7a9a7a;margin-top:8px">'+(criar?"Crie sua conta":"Entre na sua conta")+'</div></div>';
+  if(criar){
+    h+='<div style="margin-bottom:12px"><div style="font-size:11px;color:#7a9a7a;font-weight:700;letter-spacing:.08em;text-transform:uppercase;margin-bottom:6px">Nome</div><input class="inp" id="auth-nome" placeholder="Seu nome"/></div>';
+  }
+  h+='<div style="margin-bottom:12px"><div style="font-size:11px;color:#7a9a7a;font-weight:700;letter-spacing:.08em;text-transform:uppercase;margin-bottom:6px">E-mail</div><input class="inp" id="auth-email" type="email" autocomplete="off" placeholder="voce@email.com"/></div>';
+  h+='<div style="margin-bottom:18px"><div style="font-size:11px;color:#7a9a7a;font-weight:700;letter-spacing:.08em;text-transform:uppercase;margin-bottom:6px">Senha</div><input class="inp" id="auth-senha" type="password" placeholder="••••••"/></div>';
+  h+='<div id="auth-erro" style="color:#f87171;font-size:13px;margin-bottom:12px;min-height:16px"></div>';
+  h+='<button class="btn-main" onclick="'+(criar?"doRegister()":"doLogin()")+'">'+(criar?"CRIAR CONTA":"ENTRAR")+'</button>';
+  h+='<div style="text-align:center;margin-top:18px;font-size:13px;color:#7a9a7a">';
+  if(criar)h+='Já tem conta? <span style="color:#f97316;font-weight:700;cursor:pointer" onclick="setAuthMode(\'entrar\')">Entrar</span>';
+  else h+='Não tem conta? <span style="color:#f97316;font-weight:700;cursor:pointer" onclick="setAuthMode(\'criar\')">Criar conta</span>';
+  h+='</div></div>';
+  var el=document.getElementById("auth-screen");
+  el.innerHTML=h;el.style.display="block";
+}
+
+function doRegister(){
+  var r=registrar(val("auth-nome"),val("auth-email"),val("auth-senha"));
+  if(r.erro)return showErro(r.erro);
+  currentUser=r.user;setSession(r.user.id);enterApp();
+}
+function doLogin(){
+  var r=entrar(val("auth-email"),val("auth-senha"));
+  if(r.erro)return showErro(r.erro);
+  currentUser=r.user;setSession(r.user.id);enterApp();
+}
+function val(id){var e=document.getElementById(id);return e?e.value:"";}
+
+function enterApp(){
+  document.getElementById("auth-screen").style.display="none";
+  document.querySelector(".nav").style.display="block";
+  loadUserData();
+  goTo("home");
+}
+
 // ── INIT ─────────────────────────────────────────────────────────────────────
 if('serviceWorker' in navigator){
   navigator.serviceWorker.register('./service-worker.js');
 }
-renderHome();
+function boot(){
+  currentUser=getSession();
+  if(currentUser){enterApp();}
+  else{document.querySelector(".nav").style.display="none";renderAuth();}
+}
+boot();
 </script>
 </body>
 </html>
