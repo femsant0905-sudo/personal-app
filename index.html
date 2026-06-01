@@ -48,6 +48,7 @@ textarea{background:#0a0f0a;border:1px solid #243324;border-radius:12px;padding:
 <div id="pg-dieta"  class="page"></div>
 <div id="pg-corpo"  class="page"></div>
 <div id="pg-admin"  class="page"></div>
+<div id="pg-saude"  class="page"></div>
 
 <div class="nav" style="display:none">
   <div class="nav-inner">
@@ -209,9 +210,9 @@ async function carregarPerfil(){
   var u=await sb.auth.getUser();
   var user=u.data&&u.data.user;
   if(!user)return null;
-  var p=await sb.from("profiles").select("nome,role,altura,peso_inicial,peso_meta").eq("id",user.id).single();
+  var p=await sb.from("profiles").select("nome,role,altura,peso_inicial,peso_meta,saude").eq("id",user.id).single();
   var perfil=p.data||{};
-  return {id:user.id,email:user.email,nome:perfil.nome||user.email.split("@")[0],role:perfil.role||"cliente",altura:perfil.altura,peso_inicial:perfil.peso_inicial,peso_meta:perfil.peso_meta};
+  return {id:user.id,email:user.email,nome:perfil.nome||user.email.split("@")[0],role:perfil.role||"cliente",altura:perfil.altura,peso_inicial:perfil.peso_inicial,peso_meta:perfil.peso_meta,saude:perfil.saude||{}};
 }
 async function logout(){await sb.auth.signOut();currentUser=null;TREINOS=TREINOS_PADRAO;REFEICOES=REFEICOES_PADRAO;document.querySelector(".nav").style.display="none";renderAuth();}
 
@@ -370,6 +371,7 @@ function renderHome(){
   h+='<div style="font-size:12px;color:#7a9a7a;font-weight:600;letter-spacing:.1em;text-transform:uppercase;margin-bottom:6px">'+diaStr+'</div>';
   h+='<div style="font-size:28px;font-weight:900;letter-spacing:-.03em;line-height:1.1">'+saudacao()+',<br><span style="color:#f97316">'+primeiroNome()+'.</span></div></div>';
   if(currentUser.role==="admin")h+='<div class="card" style="border-left:3px solid #a78bfa;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;cursor:pointer" onclick="openAdmin()"><div>'+tag("Admin","#a78bfa")+'<div style="font-size:16px;font-weight:800;margin-top:6px">Montar treinos</div><div style="font-size:12px;color:#7a9a7a;margin-top:2px">Editar o plano de treino</div></div><div style="font-size:26px;color:#a78bfa">⚙</div></div>';
+  h+='<div class="card" style="border-left:3px solid #4ade80;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;cursor:pointer" onclick="openSaude()"><div>'+tag("Saúde","#4ade80")+'<div style="font-size:16px;font-weight:800;margin-top:6px">'+((currentUser.saude&&currentUser.saude.objetivo)?"Meu perfil de saúde":"Complete seu perfil")+'</div><div style="font-size:12px;color:#7a9a7a;margin-top:2px">Objetivo · condições · restrições</div></div><div style="font-size:24px;color:#4ade80">♥</div></div>';
   if(!pesouHoje) h+='<div class="alert"><div class="alert-dot"></div>Registre seu peso hoje</div>';
   if(!medidoHoje)h+='<div class="alert"><div class="alert-dot"></div>Meça a pressão arterial hoje</div>';
 
@@ -1221,7 +1223,7 @@ async function openAdmin(){
   await carregarAlvo();
 }
 async function carregarUsuarios(){
-  try{var res=await sb.from("profiles").select("id,nome,role");adminUsers=res.data||[];}catch(e){adminUsers=[];}
+  try{var res=await sb.from("profiles").select("id,nome,role,saude");adminUsers=res.data||[];}catch(e){adminUsers=[];}
   adminUsers.sort(function(a,b){return a.id===currentUser.id?-1:b.id===currentUser.id?1:0;}); // você primeiro
   renderAdmin();
 }
@@ -1308,6 +1310,15 @@ function renderAdmin(){
   h+='<button class="pill '+(adminMode==="dieta"?"active":"")+'" onclick="setAdminMode(\'dieta\')">DIETA</button>';
   h+='</div>';
   if(adminMsg)h+='<div style="font-size:13px;color:'+(adminMsg.indexOf("Erro")>=0?"#f87171":"#4ade80")+';margin-bottom:10px;font-weight:700">'+adminMsg+'</div>';
+  var alvoUser=adminUsers.filter(function(u){return adminAlvo&&u.id===adminAlvo.id;})[0];
+  if(alvoUser&&alvoUser.saude&&Object.keys(alvoUser.saude).length){
+    var sd=alvoUser.saude;
+    h+='<div class="card" style="border-left:3px solid #4ade80;margin-bottom:12px">'+tag("Perfil do cliente","#4ade80")+'<div style="margin-top:10px;font-size:12px;line-height:1.7">';
+    [["Objetivo","objetivo"],["Nível","nivel"],["Dias/sem","dias"],["Doenças","doencas"],["Lesões","lesoes"],["Alimentar","alimentar"],["Medicamentos","medicamentos"],["Obs","obs"]].forEach(function(f){
+      if((sd[f[1]]||"").toString().trim())h+='<div style="margin-bottom:2px"><span style="color:#7a9a7a">'+f[0]+':</span> '+sd[f[1]]+'</div>';
+    });
+    h+='</div></div>';
+  }
 
   if(adminMode==="treino"){
     if(!planoEdit){h+='<div style="font-size:13px;color:#7a9a7a;padding:18px 0">Carregando treino...</div>';document.getElementById("pg-admin").innerHTML=h;return;}
@@ -1396,7 +1407,55 @@ async function salvarOnboarding(){
   currentUser.altura=altura;currentUser.peso_inicial=pesoA;currentUser.peso_meta=meta;
   loadUserData();
   if(!pesos.length){pesos.push({data:hoje(),peso:pesoA});save();}
-  enterApp();
+  await enterApp();
+  openSaude(); // novo usuário vai direto pro perfil de saúde
+}
+
+// ── PERFIL DE SAÚDE (questionário do usuário) ─────────────────────────────────
+var saudeEdit=null,saudeMsg="";
+function openSaude(){
+  if(!currentUser)return;
+  saudeEdit=JSON.parse(JSON.stringify(currentUser.saude||{}));
+  saudeMsg="";
+  document.querySelectorAll(".page").forEach(function(p){p.classList.remove("active");});
+  document.getElementById("pg-saude").classList.add("active");
+  curPage="saude";renderSaude();window.scrollTo(0,0);
+}
+function setSaude(campo,v){if(saudeEdit)saudeEdit[campo]=v;}
+function setSaudePill(campo,v){if(saudeEdit){saudeEdit[campo]=(saudeEdit[campo]===v?"":v);renderSaude();}}
+async function salvarSaude(){
+  if(!saudeEdit)return;
+  saudeMsg="Salvando...";renderSaude();
+  var r=await sb.from("profiles").update({saude:saudeEdit}).eq("id",currentUser.id);
+  if(r.error){saudeMsg="Erro ao salvar: "+r.error.message;renderSaude();return;}
+  currentUser.saude=JSON.parse(JSON.stringify(saudeEdit));
+  saudeMsg="Perfil salvo ✓";renderSaude();
+}
+function renderSaude(){
+  var s=saudeEdit||{};
+  function pills(campo,label,opts){
+    var x='<div style="margin-bottom:16px"><div style="font-size:11px;color:#7a9a7a;font-weight:700;letter-spacing:.08em;text-transform:uppercase;margin-bottom:8px">'+label+'</div><div style="display:flex;flex-wrap:wrap;gap:6px">';
+    opts.forEach(function(o){x+='<button class="pill '+(s[campo]===o?"active":"")+'" onclick="setSaudePill(\''+campo+'\',\''+o+'\')">'+o+'</button>';});
+    return x+'</div></div>';
+  }
+  function area(campo,label,ph){return '<div style="margin-bottom:14px"><div style="font-size:11px;color:#7a9a7a;font-weight:700;letter-spacing:.08em;text-transform:uppercase;margin-bottom:6px">'+label+'</div><textarea oninput="setSaude(\''+campo+'\',this.value)" rows="2" placeholder="'+ph+'" style="font-size:13px">'+(s[campo]||"")+'</textarea></div>';}
+  var h='';
+  h+='<div style="display:flex;align-items:center;gap:12px;padding-top:24px;padding-bottom:16px">';
+  h+='<button style="background:none;border:none;color:#7a9a7a;cursor:pointer;font-size:15px;padding:0" onclick="goTo(\'home\')">← Voltar</button>';
+  h+='<div style="flex:1"><div style="font-size:20px;font-weight:900">Perfil de Saúde</div><div style="font-size:12px;color:#7a9a7a">Pra montar treino e dieta certos pra você</div></div></div>';
+  if(saudeMsg)h+='<div style="font-size:13px;color:'+(saudeMsg.indexOf("Erro")>=0?"#f87171":"#4ade80")+';margin-bottom:10px;font-weight:700">'+saudeMsg+'</div>';
+  h+='<div class="card">';
+  h+=pills("objetivo","Objetivo principal",["Emagrecer","Ganhar massa","Saúde","Condicionamento"]);
+  h+=pills("nivel","Nível de treino",["Iniciante","Intermediário","Avançado"]);
+  h+=pills("dias","Dias por semana",["2","3","4","5","6"]);
+  h+=area("doencas","Doenças / condições","Ex: hipertensão, gota, diabetes...");
+  h+=area("lesoes","Lesões ou dores","Ex: dor no joelho, lombar...");
+  h+=area("alimentar","Restrições alimentares","Ex: intolerância a lactose, vegetariano...");
+  h+=area("medicamentos","Medicamentos","Ex: losartana, estatina...");
+  h+=area("obs","Observações","Algo que o personal deva saber...");
+  h+='</div>';
+  h+='<button class="btn-main" onclick="salvarSaude()" style="margin:12px 0">SALVAR PERFIL</button>';
+  document.getElementById("pg-saude").innerHTML=h;
 }
 
 // ── INIT ─────────────────────────────────────────────────────────────────────
