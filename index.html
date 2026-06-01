@@ -265,6 +265,7 @@ async function pullCloud(){
 // ── UTILS ────────────────────────────────────────────────────────────────────
 function hoje(){return new Date().toISOString().split("T")[0];}
 function saudacao(){var hh=new Date().getHours();return hh<12?"Bom dia":hh<18?"Boa tarde":"Boa noite";}
+function numBR(v){return parseFloat(String(v||"").replace(",","."))||0;} // aceita vírgula (iPhone/BR)
 function primeiroNome(){return currentUser&&currentUser.nome?currentUser.nome.split(" ")[0]:"";}
 function imcCategoria(imc){
   if(imc<18.5)return {txt:"Abaixo do peso",cor:"#fbbf24"};
@@ -468,7 +469,7 @@ function renderDiario(){
   h+='<button class="btn-sec" style="font-size:18px;color:'+(diarioData===hoje()?"#243324":"#7a9a7a")+'" onclick="navDiario(1)">›</button></div>';
 
   h+='<div class="card" style="border-left:3px solid #f97316;margin-bottom:10px">'+tag("Peso","#f97316");
-  h+='<div style="display:flex;gap:8px;margin-top:12px"><input class="inp" id="inp-peso" type="number" step="0.1" placeholder="'+(pesoReg?pesoReg.peso:"kg")+'" value="'+(pesoReg?pesoReg.peso:"")+'" style="font-size:22px;font-family:monospace"/></div>';
+  h+='<div style="display:flex;gap:8px;margin-top:12px"><input class="inp" id="inp-peso" type="text" inputmode="decimal" placeholder="'+(pesoReg?pesoReg.peso:"kg")+'" value="'+(pesoReg?pesoReg.peso:"")+'" style="font-size:22px;font-family:monospace"/></div>';
   h+='<div style="font-size:11px;color:#3d5a3d;margin-top:8px">Após o treino · Em jejum</div></div>';
 
   h+='<div class="card" style="border-left:3px solid #fbbf24;margin-bottom:10px">'+tag("Pressão Arterial","#fbbf24");
@@ -494,7 +495,7 @@ function navDiario(delta){
   renderDiario();
 }
 function salvarDiario(){
-  var pesoVal=parseFloat(document.getElementById("inp-peso").value);
+  var pesoVal=numBR(document.getElementById("inp-peso").value);
   var manha=document.getElementById("inp-manha").value||"";
   var noite=document.getElementById("inp-noite").value||"";
   var nota=document.getElementById("inp-nota").value||"";
@@ -931,7 +932,7 @@ function renderCorpo(){
   h+='<div style="padding-top:28px;padding-bottom:16px"><div style="font-size:12px;color:#7a9a7a;font-weight:600;letter-spacing:.1em;text-transform:uppercase;margin-bottom:6px">Acompanhamento</div>';
   h+='<div style="font-size:28px;font-weight:900;letter-spacing:-.02em">Corpo</div></div>';
   h+='<div class="card" style="border-left:3px solid #f97316;margin-bottom:10px">'+tag("Registrar peso","#f97316");
-  h+='<div style="display:flex;gap:8px;margin-top:12px"><input class="inp" id="inp-corpo-peso" type="number" step="0.1" placeholder="kg" style="font-size:24px;font-family:monospace"/>';
+  h+='<div style="display:flex;gap:8px;margin-top:12px"><input class="inp" id="inp-corpo-peso" type="text" inputmode="decimal" placeholder="kg" style="font-size:24px;font-family:monospace"/>';
   h+='<button onclick="salvarPesoCorpo()" id="btn-peso-corpo" style="padding:13px 22px;background:linear-gradient(135deg,#f97316,#fbbf24);color:#0a0f0a;border-radius:12px;border:none;cursor:pointer;font-size:14px;font-weight:800">OK</button></div>';
   h+='<div style="font-size:11px;color:#3d5a3d;margin-top:8px">Após o treino · Em jejum · Mesmo horário sempre</div></div>';
 
@@ -1035,7 +1036,7 @@ function renderCorpo(){
 }
 
 function salvarPesoCorpo(){
-  var p=parseFloat(document.getElementById("inp-corpo-peso").value);
+  var p=numBR(document.getElementById("inp-corpo-peso").value);
   if(!p||p<50||p>250)return;
   pesos=pesos.filter(function(x){return x.data!==hoje();});
   pesos.push({data:hoje(),peso:p});
@@ -1371,12 +1372,12 @@ function onbErro(msg){var e=document.getElementById("onb-erro");if(e)e.textConte
 function renderOnboarding(){
   document.querySelectorAll(".page").forEach(function(p){p.classList.remove("active");});
   document.querySelector(".nav").style.display="none";
-  function campo(id,label,ph){return '<div style="margin-bottom:14px"><div style="font-size:11px;color:#7a9a7a;font-weight:700;letter-spacing:.08em;text-transform:uppercase;margin-bottom:6px">'+label+'</div><input class="inp" id="'+id+'" type="number" step="0.01" inputmode="decimal" placeholder="'+ph+'" style="font-size:20px;font-family:monospace"/></div>';}
+  function campo(id,label,ph){return '<div style="margin-bottom:14px"><div style="font-size:11px;color:#7a9a7a;font-weight:700;letter-spacing:.08em;text-transform:uppercase;margin-bottom:6px">'+label+'</div><input class="inp" id="'+id+'" type="text" inputmode="decimal" placeholder="'+ph+'" style="font-size:20px;font-family:monospace"/></div>';}
   var h='';
   h+='<div style="max-width:380px;margin:0 auto;padding:54px 22px">';
   h+='<div style="margin-bottom:28px"><div style="font-size:26px;font-weight:900;letter-spacing:-.03em">Bem-vindo, <span style="color:#f97316">'+primeiroNome()+'</span></div>';
   h+='<div style="font-size:13px;color:#7a9a7a;margin-top:8px;line-height:1.6">Só uma vez: conte um pouco sobre você pra personalizar o app.</div></div>';
-  h+=campo("onb-altura","Altura (em metros)","ex: 1.75");
+  h+=campo("onb-altura","Altura (em cm)","ex: 158");
   h+=campo("onb-peso","Peso atual (kg)","ex: 80");
   h+=campo("onb-meta","Peso meta (kg)","ex: 72");
   h+='<div id="onb-erro" style="color:#f87171;font-size:13px;margin:4px 0 12px;min-height:16px"></div>';
@@ -1384,10 +1385,11 @@ function renderOnboarding(){
   var el=document.getElementById("auth-screen");el.innerHTML=h;el.style.display="block";
 }
 async function salvarOnboarding(){
-  var altura=parseFloat(val("onb-altura")),pesoA=parseFloat(val("onb-peso")),meta=parseFloat(val("onb-meta"));
-  if(!altura||altura<1.2||altura>2.3)return onbErro("Informe a altura em metros (ex: 1.75).");
+  var alturaCm=numBR(val("onb-altura")),pesoA=numBR(val("onb-peso")),meta=numBR(val("onb-meta"));
+  if(!alturaCm||alturaCm<120||alturaCm>230)return onbErro("Informe a altura em cm (ex: 158).");
   if(!pesoA||pesoA<30||pesoA>400)return onbErro("Peso atual inválido.");
   if(!meta||meta<30||meta>400)return onbErro("Peso meta inválido.");
+  var altura=alturaCm/100;
   onbErro("Salvando...");
   var res=await sb.from("profiles").update({altura:altura,peso_inicial:pesoA,peso_meta:meta}).eq("id",currentUser.id);
   if(res.error)return onbErro("Erro ao salvar. Tente de novo.");
