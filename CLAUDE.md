@@ -36,12 +36,12 @@ PWA de saúde e fitness. HTML single-file (`index.html`), sem framework, sem bui
 ## Próxima sessão — por onde retomar
 > Detalhe completo na memória: pergunte "qual o status do projeto?" no início.
 
-**Já pronto e no ar:** login Supabase cross-device · sync de dados na nuvem · perfil/onboarding/IMC por usuário · card "Dados de referência" editável por usuário.
+**Já pronto e no ar (Fase 3 COMPLETA):** login Supabase cross-device · sync de dados · perfil/onboarding/IMC por usuário · **treino e dieta como dados por cliente** (tabelas `planos_treino`/`planos_dieta`) · tela de admin "Montar Plano" (escolhe cliente, edita treino/dieta) · **cliente também edita o próprio** plano · **dias de treino livres** (cria/nomeia/remove, sem A–F fixo) · **perfil de saúde por usuário** (`profiles.saude`: objetivo, restrições, doenças, etc., admin vê pra montar) · conta nova começa ZERADA. Esposa já usa (conta cliente, instalada no iPhone).
 
-**RETOMAR PELA Fase 3b — treinos viram dados:**
-- Tirar `TREINOS` do código → virar dados editáveis no Postgres, um plano de treino por cliente.
-- Tela de admin pra montar/atribuir treinos.
-- **Ao montar, oferecer 2 origens:** (a) **pedir ao Personal** (manual) OU (b) **pedir à IA** (Claude gera o treino e aloca no app, respeitando perfil/restrições do usuário — ex. gota, restrição cardíaca, cargas moderadas). A opção IA reusa a arquitetura de Edge Function → API Anthropic.
-- Depois: Fase 3c (dieta vira dados) · Fase 2 (criar contas reais da esposa e do amigo).
+**RETOMAR POR:**
+1. **Fase 2** — criar conta real do amigo (esposa já criou). Fluxo: ele abre o site no Safari → "Criar conta" → onboarding (altura em cm) → perfil de saúde → você monta treino/dieta dele na tela de admin.
+2. Refinamentos que Fernando pedir (ex: `METAS` de macros por usuário — hoje ainda global).
 
-**PAUSADO (retomar quando quiser):** import de PDF de exame. Código pronto (front + Edge Function `ler-exame`), MAS a função retorna `NOT_FOUND` — não está publicada com o nome `ler-exame`. Resolver o deploy: conferir nome real da função no painel Supabase / re-deploy. Botão no app fica visível mas dá erro até lá.
+**PAUSADO — dependem de Edge Function funcionando (mesmo bloqueio):**
+- **Coach AI** (desenho aprovado): cada usuário conversa com o Claude sobre o próprio plano; Claude lê o perfil de saúde + dados. Função `coach` com modo conselho/gerar. Detalhe na memória.
+- **Import de PDF de exame:** código pronto, mas Edge Function `ler-exame` retorna `NOT_FOUND` (deploy não pegou). Resolver o deploy destrava o Coach AI E o PDF de uma vez.
