@@ -422,9 +422,13 @@ function renderHome(){
   } else h+='<div style="font-size:14px;color:#7a9a7a">Nenhuma medição ainda</div>';
   h+='<div style="margin-top:10px;font-size:11px;color:#3d5a3d">Meta: abaixo de 120/80</div></div>';
 
-  h+='<div class="card" style="border-left:3px solid #4ade80;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;cursor:pointer;active:opacity:.8" onclick="goTo(\'treino\');startTreino(\''+prox.id+'\')">';
-  h+='<div>'+tag("Próximo Treino","#4ade80")+'<div style="font-size:19px;font-weight:800;margin-top:8px">Dia '+prox.id+' — '+prox.nome+'</div><div style="font-size:12px;color:#7a9a7a;margin-top:3px">'+prox.sub+'</div></div>';
-  h+='<div style="font-size:40px;font-weight:900;color:#4ade8033">▶</div></div>';
+  if(prox){
+    h+='<div class="card" style="border-left:3px solid #4ade80;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;cursor:pointer;active:opacity:.8" onclick="goTo(\'treino\');startTreino(\''+prox.id+'\')">';
+    h+='<div>'+tag("Próximo Treino","#4ade80")+'<div style="font-size:19px;font-weight:800;margin-top:8px">Dia '+prox.id+' — '+prox.nome+'</div><div style="font-size:12px;color:#7a9a7a;margin-top:3px">'+prox.sub+'</div></div>';
+    h+='<div style="font-size:40px;font-weight:900;color:#4ade8033">▶</div></div>';
+  } else {
+    h+='<div class="card" style="border-left:3px solid #3d5a3d;margin-bottom:10px"><div>'+tag("Treino","#7a9a7a")+'<div style="font-size:15px;font-weight:700;margin-top:8px;color:#7a9a7a">Treino ainda não montado</div><div style="font-size:12px;color:#3d5a3d;margin-top:3px">'+(currentUser.role==="admin"?"Monte em ⚙ Montar treinos":"Seu personal vai montar em breve")+'</div></div></div>';
+  }
 
   h+='<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:10px">';
   [[" #f97316",Object.keys(treinos).length,"Treinos"],["#4ade80",kcalH,"kcal hoje"],["#fbbf24",pesos.length,"Pesagens"]].forEach(function(x){
@@ -537,6 +541,11 @@ function renderTreinoList(){
   h+='<div style="padding-top:28px;padding-bottom:20px">';
   h+='<div style="font-size:12px;color:#7a9a7a;font-weight:600;letter-spacing:.1em;text-transform:uppercase;margin-bottom:6px">Fase 1 · Semanas 1–4</div>';
   h+='<div style="font-size:28px;font-weight:900;letter-spacing:-.02em">Treino</div></div>';
+
+  if(!TREINOS.length){
+    h+='<div class="card" style="border-left:3px solid #3d5a3d"><div style="font-size:15px;font-weight:700;color:#7a9a7a">Nenhum treino montado ainda</div><div style="font-size:13px;color:#3d5a3d;margin-top:6px;line-height:1.5">'+(currentUser&&currentUser.role==="admin"?"Use ⚙ Montar treinos na tela inicial pra criar o seu.":"Seu personal vai montar seu treino em breve.")+'</div></div>';
+    document.getElementById("pg-treino").innerHTML=h;return;
+  }
 
   h+='<div style="font-size:10px;color:#7a9a7a;font-weight:700;letter-spacing:.12em;text-transform:uppercase;margin-bottom:8px">Semana · ~45 min</div>';
   TREINOS.filter(function(t){return semanIds.indexOf(t.id)>=0;}).forEach(function(t){
@@ -824,6 +833,7 @@ function renderDieta(){
   [["plano","Plano"],["macros","Macros"],["gota","Gota"]].forEach(function(x){h+='<button class="pill '+(dietaAba===x[0]?"active":"")+'" onclick="setDietaAba(\''+x[0]+'\')">'+x[1].toUpperCase()+'</button>';});
   h+='</div>';
   if(dietaAba==="plano"){
+    if(!REFEICOES.length)h+='<div class="card" style="border-left:3px solid #3d5a3d"><div style="font-size:15px;font-weight:700;color:#7a9a7a">Nenhuma dieta montada ainda</div><div style="font-size:13px;color:#3d5a3d;margin-top:6px;line-height:1.5">'+(currentUser&&currentUser.role==="admin"?"Use ⚙ Montar treinos → DIETA pra criar a sua.":"Seu personal vai montar sua dieta em breve.")+'</div></div>';
     REFEICOES.forEach(function(r){
       var checked=!!d[r.id];
       var opIdx=getOpcaoIdx(r.id);
@@ -1190,24 +1200,24 @@ async function enterApp(){
   goTo(curPage);
 }
 
-// carrega o plano de treino do usuário (ou usa o padrão A–F)
+// carrega o plano de treino do usuário (VAZIO se ainda não tiver — não usa o padrão)
 async function pullPlano(){
-  if(!currentUser){TREINOS=TREINOS_PADRAO;return;}
+  if(!currentUser){TREINOS=[];return;}
   try{
     var res=await sb.from("planos_treino").select("plano").eq("user_id",currentUser.id).maybeSingle();
     if(res.data&&Array.isArray(res.data.plano)&&res.data.plano.length)TREINOS=res.data.plano;
-    else TREINOS=TREINOS_PADRAO;
-  }catch(e){TREINOS=TREINOS_PADRAO;}
+    else TREINOS=[];
+  }catch(e){TREINOS=[];}
 }
 
-// carrega a dieta do usuário (ou usa a padrão)
+// carrega a dieta do usuário (VAZIA se ainda não tiver)
 async function pullDieta(){
-  if(!currentUser){REFEICOES=REFEICOES_PADRAO;return;}
+  if(!currentUser){REFEICOES=[];return;}
   try{
     var res=await sb.from("planos_dieta").select("plano").eq("user_id",currentUser.id).maybeSingle();
     if(res.data&&Array.isArray(res.data.plano)&&res.data.plano.length)REFEICOES=res.data.plano;
-    else REFEICOES=REFEICOES_PADRAO;
-  }catch(e){REFEICOES=REFEICOES_PADRAO;}
+    else REFEICOES=[];
+  }catch(e){REFEICOES=[];}
 }
 
 // ── ADMIN: editor de treino e dieta (só admin) ────────────────────────────────
