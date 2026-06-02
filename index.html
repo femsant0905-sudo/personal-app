@@ -211,9 +211,9 @@ async function carregarPerfil(){
   var u=await sb.auth.getUser();
   var user=u.data&&u.data.user;
   if(!user)return null;
-  var p=await sb.from("profiles").select("nome,role,altura,peso_inicial,peso_meta,saude").eq("id",user.id).single();
+  var p=await sb.from("profiles").select("nome,role,altura,peso_inicial,peso_meta,saude,metas").eq("id",user.id).single();
   var perfil=p.data||{};
-  return {id:user.id,email:user.email,nome:perfil.nome||user.email.split("@")[0],role:perfil.role||"cliente",altura:perfil.altura,peso_inicial:perfil.peso_inicial,peso_meta:perfil.peso_meta,saude:perfil.saude||{}};
+  return {id:user.id,email:user.email,nome:perfil.nome||user.email.split("@")[0],role:perfil.role||"cliente",altura:perfil.altura,peso_inicial:perfil.peso_inicial,peso_meta:perfil.peso_meta,saude:perfil.saude||{},metas:perfil.metas||null};
 }
 async function logout(){await sb.auth.signOut();currentUser=null;TREINOS=TREINOS_PADRAO;REFEICOES=REFEICOES_PADRAO;document.querySelector(".nav").style.display="none";renderAuth();}
 
@@ -799,6 +799,7 @@ function getOpcao(r){return r.opcoes[getOpcaoIdx(r.id)];}
 function setDietaOpcao(id,idx){if(!dietaLog[hoje()])dietaLog[hoje()]={};dietaLog[hoje()][id+'_op']=idx;save();renderDieta();}
 function renderDieta(){
   var d=dietaLog[hoje()]||{};
+  var META=(currentUser&&currentUser.metas)||METAS; // meta de macros por usuário
   var tot={kcal:0,prot:0,carb:0,gord:0,sodio:0};
   REFEICOES.forEach(function(r){if(d[r.id]){var op=getOpcao(r);tot.kcal+=op.kcal;tot.prot+=op.prot;tot.carb+=op.carb;tot.gord+=op.gord;tot.sodio+=op.sodio;}});
   var h='';
@@ -831,9 +832,9 @@ function renderDieta(){
   }
   if(dietaAba==="macros"){
     h+='<div class="card" style="margin-bottom:10px"><div style="display:flex;align-items:baseline;gap:10px;margin-bottom:16px"><div style="font-size:52px;font-weight:900;color:#f97316;letter-spacing:-.04em;line-height:1">'+tot.kcal+'</div>';
-    h+='<div style="font-size:16px;color:#7a9a7a">/ '+METAS.kcal+' kcal</div></div>'+bar(tot.kcal,METAS.kcal,8,"#f97316","#fbbf24")+'</div>';
+    h+='<div style="font-size:16px;color:#7a9a7a">/ '+META.kcal+' kcal</div></div>'+bar(tot.kcal,META.kcal,8,"#f97316","#fbbf24")+'</div>';
     h+='<div class="card">';
-    [["Proteína",tot.prot,METAS.prot,"g","#f97316"],["Carboidrato",tot.carb,METAS.carb,"g","#4ade80"],["Gordura",tot.gord,METAS.gord,"g","#fbbf24"],["Sódio",tot.sodio,METAS.sodio,"mg","#f87171"]].forEach(function(x){
+    [["Proteína",tot.prot,META.prot,"g","#f97316"],["Carboidrato",tot.carb,META.carb,"g","#4ade80"],["Gordura",tot.gord,META.gord,"g","#fbbf24"],["Sódio",tot.sodio,META.sodio,"mg","#f87171"]].forEach(function(x){
       h+='<div style="margin-bottom:16px"><div style="display:flex;justify-content:space-between;margin-bottom:6px"><span style="font-size:13px;color:#7a9a7a;font-weight:600">'+x[0]+'</span>';
       h+='<span style="font-size:13px;color:'+x[4]+';font-weight:700">'+x[1]+x[3]+' / '+x[2]+x[3]+'</span></div>'+bar(x[1],x[2],5,x[4],x[4])+'</div>';
     });
