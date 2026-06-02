@@ -41,6 +41,7 @@ textarea{background:#0a0f0a;border:1px solid #243324;border-radius:12px;padding:
 <body>
 <div id="auth-screen"></div>
 <input type="file" id="pdf-input" accept="application/pdf" style="display:none" onchange="importarPDF(event)"/>
+<input type="file" id="whoop-input" accept=".csv" style="display:none" onchange="importWhoop(event)"/>
 <div id="pg-home"   class="page active"></div>
 <div id="pg-diario" class="page"></div>
 <div id="pg-treino" class="page"></div>
@@ -222,7 +223,7 @@ function uk(k){return "u_"+(currentUser?currentUser.id:"anon")+"_"+k;}
 function sget(k,d){try{var v=localStorage.getItem(uk(k));return v?JSON.parse(v):d;}catch(e){return d;}}
 function sset(k,v){try{localStorage.setItem(uk(k),JSON.stringify(v));}catch(e){}}
 
-var pesos,dietaLog,treinos,pressoes,diario,cargaHist,referencias;
+var pesos,dietaLog,treinos,pressoes,diario,cargaHist,referencias,whoopData;
 function loadUserData(){
   pesos       = sget("ff_pesos",       []);
   dietaLog    = sget("ff_dieta",       {});
@@ -231,6 +232,7 @@ function loadUserData(){
   diario      = sget("ff_diario",      {});
   cargaHist   = sget("ff_cargas",      {}); // {exNome: [{data, series:[{s,kg,reps}]}]}
   referencias = sget("ff_referencias", {itens:[],nota:""}); // dados médicos de referência por usuário
+  whoopData   = sget("ff_whoop",       []); // [{data, rhr, hrv, recovery}] importado do Whoop
 }
 
 function save(){
@@ -238,12 +240,12 @@ function save(){
   sset("ff_pesos",pesos); sset("ff_dieta",dietaLog);
   sset("ff_treinos",treinos); sset("ff_pressoes",pressoes);
   sset("ff_diario",diario); sset("ff_cargas",cargaHist);
-  sset("ff_referencias",referencias);
+  sset("ff_referencias",referencias); sset("ff_whoop",whoopData);
   // 2) espelha pro Supabase em segundo plano
   pushCloud("ff_pesos",pesos); pushCloud("ff_dieta",dietaLog);
   pushCloud("ff_treinos",treinos); pushCloud("ff_pressoes",pressoes);
   pushCloud("ff_diario",diario); pushCloud("ff_cargas",cargaHist);
-  pushCloud("ff_referencias",referencias);
+  pushCloud("ff_referencias",referencias); pushCloud("ff_whoop",whoopData);
 }
 
 // envia um bloco pro Supabase (não bloqueia a tela; se falhar, fica só no aparelho)
@@ -901,6 +903,83 @@ function salvarRef(){
   save();refEdit=false;renderCorpo();
 }
 function setCorpoEx(nome){corpoExSel=corpoExSel===nome?null:nome;renderCorpo();}
+// ── WHOOP: import por arquivo (CSV) ───────────────────────────────────────────
+var whoopStatus="";
+function splitCSV(line){
+  var out=[],cur="",q=false;
+  for(var i=0;i<line.length;i++){var ch=line[i];
+    if(ch==='"'){if(q&&line[i+1]==='"'){cur+='"';i++;}else q=!q;}
+    else if(ch===','&&!q){out.push(cur);cur="";}
+    else cur+=ch;
+  }
+  out.push(cur);return out;
+}
+function parseWhoopDate(s){
+  s=String(s||"").trim();var d=s.split(/[ T]/)[0];
+  if(/^\d{4}-\d{2}-\d{2}$/.test(d))return d;
+  var m=d.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if(m)return m[3]+"-"+pad(parseInt(m[1]))+"-"+pad(parseInt(m[2])); // M/D/AAAA (formato US)
+  var dt=new Date(s);if(!isNaN(dt.getTime()))return dt.toISOString().slice(0,10);
+  return "";
+}
+function parseWhoopCSV(text){
+  var lines=text.split(/\r?\n/).filter(function(l){return l.trim();});
+  if(lines.length<2)return [];
+  var head=splitCSV(lines[0]).map(function(h){return h.trim().toLowerCase();});
+  function col(){var names=Array.prototype.slice.call(arguments);for(var i=0;i<head.length;i++){for(var j=0;j<names.length;j++){if(head[i].indexOf(names[j])>=0)return i;}}return -1;}
+  var ciDate=col("cycle start","start time","date"),ciRhr=col("resting heart rate","resting hr"),ciHrv=col("heart rate variability","hrv"),ciRec=col("recovery score","recovery");
+  if(ciRhr<0&&ciHrv<0)return []; // não é o arquivo certo
+  var out=[];
+  for(var i=1;i<lines.length;i++){
+    var c=splitCSV(lines[i]);
+    var data=ciDate>=0?parseWhoopDate(c[ciDate]):"";
+    if(!data)continue;
+    var o={data:data};
+    if(ciRhr>=0&&c[ciRhr]!==undefined&&c[ciRhr]!=="")o.rhr=Math.round(parseFloat(c[ciRhr]));
+    if(ciHrv>=0&&c[ciHrv]!==undefined&&c[ciHrv]!=="")o.hrv=Math.round(parseFloat(c[ciHrv]));
+    if(ciRec>=0&&c[ciRec]!==undefined&&c[ciRec]!=="")o.recovery=Math.round(parseFloat(c[ciRec]));
+    if(!isNaN(o.rhr)||!isNaN(o.hrv)||!isNaN(o.recovery))out.push(o);
+  }
+  return out;
+}
+function importWhoop(ev){
+  var file=ev.target.files&&ev.target.files[0];
+  ev.target.value="";
+  if(!file)return;
+  whoopStatus="Lendo arquivo...";renderCorpo();
+  var r=new FileReader();
+  r.onload=function(){
+    try{
+      var res=parseWhoopCSV(String(r.result));
+      if(!res.length){whoopStatus="Não achei FC repouso/HRV. Suba o physiological_cycles.csv (ou me mande o cabeçalho).";renderCorpo();return;}
+      var map={};(whoopData||[]).forEach(function(d){map[d.data]=d;});
+      res.forEach(function(d){map[d.data]=Object.assign(map[d.data]||{},d);});
+      whoopData=Object.keys(map).sort().map(function(k){return map[k];});
+      save();
+      whoopStatus="Importado: "+res.length+" dias ✓";renderCorpo();
+    }catch(e){whoopStatus="Erro ao ler o arquivo.";renderCorpo();}
+  };
+  r.onerror=function(){whoopStatus="Erro ao abrir o arquivo.";renderCorpo();};
+  r.readAsText(file);
+}
+function whoopChart(label,dados,campo,cor){
+  var vals=(dados||[]).filter(function(d){return typeof d[campo]==="number"&&!isNaN(d[campo]);});
+  if(vals.length<2)return '';
+  var mn=Math.min.apply(null,vals.map(function(d){return d[campo];}));
+  var mx=Math.max.apply(null,vals.map(function(d){return d[campo];}));
+  var rng=mx-mn||1;
+  var h='<div style="margin-top:14px"><div style="font-size:11px;color:#7a9a7a;margin-bottom:8px;font-weight:600">'+label+'</div>';
+  h+='<div style="display:flex;align-items:flex-end;gap:3px;height:56px">';
+  vals.forEach(function(d,i){
+    var ht=10+((d[campo]-mn)/rng)*40,isLast=i===vals.length-1;
+    h+='<div style="flex:1;display:flex;flex-direction:column;align-items:center">';
+    if(isLast)h+='<div style="font-size:9px;color:'+cor+';font-weight:700;margin-bottom:2px">'+d[campo]+'</div>';
+    h+='<div style="width:100%;background:'+(isLast?cor:"#243324")+';border-radius:3px 3px 0 0;height:'+ht+'px"></div></div>';
+  });
+  h+='</div></div>';
+  return h;
+}
+
 function renderCorpo(){
   var ult=pesos.slice(-14);
   var mn=ult.length?Math.min.apply(null,ult.map(function(x){return x.peso;})):110;
@@ -914,6 +993,26 @@ function renderCorpo(){
   h+='<div style="display:flex;gap:8px;margin-top:12px"><input class="inp" id="inp-corpo-peso" type="text" inputmode="decimal" placeholder="kg" style="font-size:24px;font-family:monospace"/>';
   h+='<button onclick="salvarPesoCorpo()" id="btn-peso-corpo" style="padding:13px 22px;background:linear-gradient(135deg,#f97316,#fbbf24);color:#0a0f0a;border-radius:12px;border:none;cursor:pointer;font-size:14px;font-weight:800">OK</button></div>';
   h+='<div style="font-size:11px;color:#3d5a3d;margin-top:8px">Após o treino · Em jejum · Mesmo horário sempre</div></div>';
+
+  // ── Whoop: FC repouso & HRV ──
+  h+='<div class="card" style="margin-bottom:10px">';
+  h+='<div style="display:flex;justify-content:space-between;align-items:center">'+tag("FC repouso & HRV","#a78bfa");
+  h+='<button onclick="document.getElementById(\'whoop-input\').click()" style="font-size:12px;color:#a78bfa;font-weight:800;background:none;border:none;cursor:pointer">Importar Whoop</button></div>';
+  if(whoopStatus)h+='<div style="font-size:12px;color:#fbbf24;margin-top:8px;line-height:1.5">'+whoopStatus+'</div>';
+  if(whoopData&&whoopData.length){
+    var wl=whoopData[whoopData.length-1];
+    h+='<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:12px">';
+    [["FC repouso",wl.rhr,"bpm","#f87171"],["HRV",wl.hrv,"ms","#4ade80"],["Recovery",wl.recovery,"%","#a78bfa"]].forEach(function(x){
+      h+='<div style="text-align:center;background:#0a0f0a;border:1px solid #1e2e1e;border-radius:10px;padding:10px 4px"><div style="font-size:22px;font-weight:900;color:'+x[3]+'">'+(x[1]!=null?x[1]:"—")+'</div><div style="font-size:9px;color:#7a9a7a;margin-top:2px;text-transform:uppercase;letter-spacing:.06em">'+x[0]+' '+x[2]+'</div></div>';
+    });
+    h+='</div>';
+    h+=whoopChart("FC repouso — últimos dias",whoopData.slice(-21),"rhr","#f87171");
+    h+=whoopChart("HRV — últimos dias",whoopData.slice(-21),"hrv","#4ade80");
+    h+='<div style="font-size:11px;color:#3d5a3d;margin-top:10px;line-height:1.5">Acompanhando a retatrutida: se a FC de repouso subir de forma consistente ou a HRV cair e não recuperar, leve ao médico antes de aumentar a dose.</div>';
+  } else {
+    h+='<div style="font-size:13px;color:#7a9a7a;margin-top:10px;line-height:1.6">No app do Whoop: <b>Membership → Data Export</b>. Suba aqui o arquivo <b>physiological_cycles.csv</b> — FC de repouso e HRV entram sozinhos. Zero digitação.</div>';
+  }
+  h+='</div>';
 
   if(ult.length>1){
     h+='<div class="card" style="margin-bottom:10px">'+tag("Evolução");
