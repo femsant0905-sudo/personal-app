@@ -1,0 +1,4 @@
+.claude/
+supabase/.temp/
+node_modules/
+_check.js

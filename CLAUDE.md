@@ -38,10 +38,13 @@ PWA de saúde e fitness. HTML single-file (`index.html`), sem framework, sem bui
 
 **Já pronto e no ar (Fase 3 COMPLETA):** login Supabase cross-device · sync de dados · perfil/onboarding/IMC por usuário · **treino e dieta como dados por cliente** (tabelas `planos_treino`/`planos_dieta`) · tela de admin "Montar Plano" (escolhe cliente, edita treino/dieta) · **cliente também edita o próprio** plano · **dias de treino livres** (cria/nomeia/remove, sem A–F fixo) · **perfil de saúde por usuário** (`profiles.saude`: objetivo, restrições, doenças, etc., admin vê pra montar) · conta nova começa ZERADA. Esposa já usa (conta cliente, instalada no iPhone).
 
-**RETOMAR POR:**
-1. **Fase 2** — criar conta real do amigo (esposa já criou). Fluxo: ele abre o site no Safari → "Criar conta" → onboarding (altura em cm) → perfil de saúde → você monta treino/dieta dele na tela de admin.
-2. Refinamentos que Fernando pedir (ex: `METAS` de macros por usuário — hoje ainda global).
+**Também no ar:** `METAS` de macros por usuário (`profiles.metas`) · import do Whoop por CSV (FC repouso/HRV na aba Corpo) · plano pessoal do Fernando gravado (treino Push/Pull/Legs, dieta nos horários dele, retatrutida no perfil de saúde — meta 95kg). **Conta admin do Fernando = `femsant@outlook.com`** (não o gmail).
 
-**PAUSADO — dependem de Edge Function funcionando (mesmo bloqueio):**
-- **Coach AI** (desenho aprovado): cada usuário conversa com o Claude sobre o próprio plano; Claude lê o perfil de saúde + dados. Função `coach` com modo conselho/gerar. Detalhe na memória.
-- **Import de PDF de exame:** código pronto, mas Edge Function `ler-exame` retorna `NOT_FOUND` (deploy não pegou). Resolver o deploy destrava o Coach AI E o PDF de uma vez.
+**🔓 BACKEND DESTRAVADO (2026-06-01):** Edge Functions funcionando. Deploy via Supabase CLI: `npx --yes supabase functions deploy <nome> --project-ref xyhstixqyhvgngkpkimv --no-verify-jwt` (de dentro de `personal-app/`, com `SUPABASE_ACCESS_TOKEN` setado; sem Docker/init). `ler-exame` no ar (405 em GET). Receita completa na memória ([[backend-edge-functions-roadmap]]).
+
+**RETOMAR POR:**
+1. **Testar o PDF de exames** ponta a ponta (front pronto, função no ar — faltou só Fernando testar).
+2. **Coach AI** (Fase B): função `coach` (lê `profiles.saude` + dados, chama Anthropic) + tela de chat. Desenho na memória.
+3. **Whoop API auto-sync** (Fase C): app de dev no Whoop + OAuth + função de sync. Mais trabalhoso.
+4. **Fase 2** — criar conta real do amigo (esposa já criou).
+5. Refinamentos diversos.
