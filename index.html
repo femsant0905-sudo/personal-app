@@ -50,6 +50,7 @@ textarea{background:#0a0f0a;border:1px solid #243324;border-radius:12px;padding:
 <div id="pg-corpo"  class="page"></div>
 <div id="pg-admin"  class="page"></div>
 <div id="pg-saude"  class="page"></div>
+<div id="pg-coach"  class="page"></div>
 
 <div class="nav" style="display:none">
   <div class="nav-inner">
@@ -382,7 +383,7 @@ function uk(k){return "u_"+(currentUser?currentUser.id:"anon")+"_"+k;}
 function sget(k,d){try{var v=localStorage.getItem(uk(k));return v?JSON.parse(v):d;}catch(e){return d;}}
 function sset(k,v){try{localStorage.setItem(uk(k),JSON.stringify(v));}catch(e){}}
 
-var pesos,dietaLog,treinos,pressoes,diario,cargaHist,referencias,whoopData;
+var pesos,dietaLog,treinos,pressoes,diario,cargaHist,referencias,whoopData,coachMsgs;
 function loadUserData(){
   pesos       = sget("ff_pesos",       []);
   dietaLog    = sget("ff_dieta",       {});
@@ -392,6 +393,7 @@ function loadUserData(){
   cargaHist   = sget("ff_cargas",      {}); // {exNome: [{data, series:[{s,kg,reps}]}]}
   referencias = sget("ff_referencias", {itens:[],nota:""}); // dados médicos de referência por usuário
   whoopData   = sget("ff_whoop",       []); // [{data, rhr, hrv, recovery}] importado do Whoop
+  coachMsgs   = sget("ff_coach",       []); // histórico do chat com o coach [{role,content}]
 }
 
 function save(){
@@ -399,12 +401,12 @@ function save(){
   sset("ff_pesos",pesos); sset("ff_dieta",dietaLog);
   sset("ff_treinos",treinos); sset("ff_pressoes",pressoes);
   sset("ff_diario",diario); sset("ff_cargas",cargaHist);
-  sset("ff_referencias",referencias); sset("ff_whoop",whoopData);
+  sset("ff_referencias",referencias); sset("ff_whoop",whoopData); sset("ff_coach",coachMsgs);
   // 2) espelha pro Supabase em segundo plano
   pushCloud("ff_pesos",pesos); pushCloud("ff_dieta",dietaLog);
   pushCloud("ff_treinos",treinos); pushCloud("ff_pressoes",pressoes);
   pushCloud("ff_diario",diario); pushCloud("ff_cargas",cargaHist);
-  pushCloud("ff_referencias",referencias); pushCloud("ff_whoop",whoopData);
+  pushCloud("ff_referencias",referencias); pushCloud("ff_whoop",whoopData); pushCloud("ff_coach",coachMsgs);
 }
 
 // envia um bloco pro Supabase (não bloqueia a tela; se falhar, fica só no aparelho)
@@ -477,6 +479,7 @@ var curPage="home";
 var NAV_LABELS={home:"início",diario:"diário",treino:"treino",along:"stretch",dieta:"dieta",corpo:"corpo"};
 
 function goTo(page){
+  var _nav=document.querySelector(".nav");if(_nav)_nav.style.display="block";
   document.querySelectorAll(".page").forEach(function(p){p.classList.remove("active");});
   document.getElementById("pg-"+page).classList.add("active");
   document.querySelectorAll(".nav-btn").forEach(function(b){
@@ -521,6 +524,7 @@ function renderHome(){
   h+='<div style="font-size:28px;font-weight:900;letter-spacing:-.03em;line-height:1.1">'+saudacao()+',<br><span style="color:#f97316">'+primeiroNome()+'.</span></div></div>';
   h+='<div class="card" style="border-left:3px solid #a78bfa;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;cursor:pointer" onclick="openAdmin()"><div>'+tag(currentUser.role==="admin"?"Admin":"Plano","#a78bfa")+'<div style="font-size:16px;font-weight:800;margin-top:6px">'+(currentUser.role==="admin"?"Montar treinos":"Meu treino e dieta")+'</div><div style="font-size:12px;color:#7a9a7a;margin-top:2px">'+(currentUser.role==="admin"?"Editar o plano de cada cliente":"Criar/editar seu próprio plano")+'</div></div><div style="font-size:26px;color:#a78bfa">⚙</div></div>';
   h+='<div class="card" style="border-left:3px solid #4ade80;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;cursor:pointer" onclick="openSaude()"><div>'+tag("Saúde","#4ade80")+'<div style="font-size:16px;font-weight:800;margin-top:6px">'+((currentUser.saude&&currentUser.saude.objetivo)?"Meu perfil de saúde":"Complete seu perfil")+'</div><div style="font-size:12px;color:#7a9a7a;margin-top:2px">Objetivo · condições · restrições</div></div><div style="font-size:24px;color:#4ade80">♥</div></div>';
+  h+='<div class="card" style="border-left:3px solid #60a5fa;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;cursor:pointer" onclick="openCoach()"><div>'+tag("Coach","#60a5fa")+'<div style="font-size:16px;font-weight:800;margin-top:6px">Falar com o Coach</div><div style="font-size:12px;color:#7a9a7a;margin-top:2px">Conselhos sobre treino e dieta</div></div><div style="font-size:24px;color:#60a5fa">💬</div></div>';
   if(!pesouHoje) h+='<div class="alert"><div class="alert-dot"></div>Registre seu peso hoje</div>';
   if(!medidoHoje)h+='<div class="alert"><div class="alert-dot"></div>Meça a pressão arterial hoje</div>';
 
@@ -1728,6 +1732,68 @@ function renderSaude(){
   h+='</div>';
   h+='<button class="btn-main" onclick="salvarSaude()" style="margin:12px 0">SALVAR PERFIL</button>';
   document.getElementById("pg-saude").innerHTML=h;
+}
+
+// ── COACH AI (chat) ───────────────────────────────────────────────────────────
+var coachLoading=false;
+function openCoach(){
+  if(!currentUser)return;
+  document.querySelectorAll(".page").forEach(function(p){p.classList.remove("active");});
+  document.querySelector(".nav").style.display="none";
+  document.getElementById("pg-coach").classList.add("active");
+  curPage="coach";renderCoach();
+}
+function escapeHtml(s){return String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");}
+function sugestaoCoach(q){var i=document.getElementById("coach-inp");if(i){i.value=q;enviarCoach();}}
+function limparCoach(){if(confirm("Limpar a conversa?")){coachMsgs=[];save();renderCoach();}}
+async function enviarCoach(){
+  var inp=document.getElementById("coach-inp");
+  var txt=inp?(inp.value||"").trim():"";
+  if(!txt||coachLoading)return;
+  coachMsgs.push({role:"user",content:txt});
+  if(inp)inp.value="";
+  coachLoading=true;save();renderCoach();
+  try{
+    var r=await sb.functions.invoke("coach",{body:{historico:coachMsgs.slice(-12)}});
+    coachLoading=false;
+    if(r.error){
+      var msg="";try{if(r.error.context&&r.error.context.json){var j=await r.error.context.json();if(j&&j.erro)msg=j.erro;}}catch(_e){}
+      coachMsgs.push({role:"assistant",content:"(erro ao responder"+(msg?": "+msg:"")+")"});
+    } else {
+      coachMsgs.push({role:"assistant",content:(r.data&&r.data.resposta)||"(sem resposta)"});
+    }
+    save();renderCoach();
+  }catch(e){coachLoading=false;coachMsgs.push({role:"assistant",content:"(falha de conexão)"});save();renderCoach();}
+}
+function renderCoach(){
+  var h='';
+  h+='<div style="display:flex;align-items:center;gap:12px;padding-top:24px;padding-bottom:12px">';
+  h+='<button style="background:none;border:none;color:#7a9a7a;cursor:pointer;font-size:15px;padding:0" onclick="goTo(\'home\')">← Voltar</button>';
+  h+='<div style="flex:1"><div style="font-size:20px;font-weight:900">Coach</div><div style="font-size:11px;color:#7a9a7a">Conhece seus dados · não substitui médico</div></div>';
+  if(coachMsgs.length)h+='<div style="font-size:11px;color:#7a9a7a;cursor:pointer" onclick="limparCoach()">Limpar</div>';
+  h+='</div>';
+  h+='<div style="padding-bottom:96px">';
+  if(!coachMsgs.length){
+    h+='<div style="font-size:13px;color:#7a9a7a;line-height:1.6;margin-bottom:14px">Pergunte o que quiser sobre seu treino, dieta e progresso:</div>';
+    ["Como está minha semana?","Comi mal ontem, e agora?","Posso aumentar a carga essa semana?","Minha HRV caiu — devo treinar pesado hoje?"].forEach(function(q){
+      h+='<button onclick="sugestaoCoach(\''+q.replace(/'/g,"\\'")+'\')" style="display:block;width:100%;text-align:left;background:#111911;border:1px solid #1e2e1e;border-radius:12px;padding:12px 14px;margin-bottom:8px;color:#eef5ee;font-size:13px;cursor:pointer">'+q+'</button>';
+    });
+  }
+  coachMsgs.forEach(function(m){
+    if(m.role==="user"){
+      h+='<div style="display:flex;justify-content:flex-end;margin-bottom:10px"><div style="background:#f9731622;border:1px solid #f9731644;color:#eef5ee;border-radius:14px 14px 4px 14px;padding:10px 14px;max-width:85%;font-size:14px;line-height:1.5;white-space:pre-wrap">'+escapeHtml(m.content)+'</div></div>';
+    } else {
+      h+='<div style="display:flex;justify-content:flex-start;margin-bottom:10px"><div style="background:#111911;border:1px solid #1e2e1e;color:#eef5ee;border-radius:14px 14px 14px 4px;padding:12px 14px;max-width:90%;font-size:14px;line-height:1.6;white-space:pre-wrap">'+escapeHtml(m.content)+'</div></div>';
+    }
+  });
+  if(coachLoading)h+='<div style="display:flex;justify-content:flex-start;margin-bottom:10px"><div style="background:#111911;border:1px solid #1e2e1e;color:#7a9a7a;border-radius:14px;padding:12px 14px;font-size:14px">digitando…</div></div>';
+  h+='</div>';
+  h+='<div style="position:fixed;bottom:0;left:0;right:0;padding:10px 14px 18px;background:#0a0f0a"><div style="display:flex;gap:8px;max-width:430px;margin:0 auto">';
+  h+='<input id="coach-inp" class="inp" placeholder="Escreva pro coach..." style="flex:1" onkeydown="if(event.key===\'Enter\')enviarCoach()"/>';
+  h+='<button onclick="enviarCoach()" class="btn-main" style="width:auto;padding:0 20px;font-size:18px">➤</button>';
+  h+='</div></div>';
+  document.getElementById("pg-coach").innerHTML=h;
+  window.scrollTo(0,document.body.scrollHeight);
 }
 
 // ── INIT ─────────────────────────────────────────────────────────────────────
