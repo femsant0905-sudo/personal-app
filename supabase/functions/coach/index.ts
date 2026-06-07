@@ -105,13 +105,23 @@ Deno.serve(async (req: Request) => {
   if (!ANTHROPIC_API_KEY) return json({ erro: "ANTHROPIC_API_KEY não configurada." }, 500);
 
   const uid = user.id;
-  const prof = (await supabase.from("profiles").select("nome,sexo,altura,peso_inicial,peso_meta,saude,metas").eq("id", uid).single()).data;
+  const prof = (await supabase.from("profiles").select("nome,role,sexo,altura,peso_inicial,peso_meta,saude,metas").eq("id", uid).single()).data;
   const udRows = (await supabase.from("user_data").select("chave,valor").eq("user_id", uid)).data || [];
   // deno-lint-ignore no-explicit-any
   const ud: any = {}; udRows.forEach((r: any) => { ud[r.chave] = r.valor; });
   const ptreino = (await supabase.from("planos_treino").select("plano").eq("user_id", uid).maybeSingle()).data;
 
   const contexto = montarContexto(prof, ud, ptreino);
+
+  // limite diário por usuário (admin ilimitado) — freio de custo
+  const LIMITE = 15;
+  const hoje = new Date().toISOString().slice(0, 10);
+  const uso = ud.ff_coach_uso || { dia: "", n: 0 };
+  const isAdmin = prof?.role === "admin";
+  if (!isAdmin) {
+    const nHoje = uso.dia === hoje ? (uso.n || 0) : 0;
+    if (nHoje >= LIMITE) return json({ resposta: "Você atingiu o limite de " + LIMITE + " mensagens de hoje. Volte amanhã 🙂" });
+  }
 
   const system = [{
     type: "text",
@@ -139,5 +149,10 @@ Deno.serve(async (req: Request) => {
   if (!resp.ok) { const detalhe = await resp.text(); return json({ erro: "Erro no coach.", detalhe }, 502); }
   const data = await resp.json();
   const texto = (data?.content || []).filter((b: any) => b.type === "text").map((b: any) => b.text).join("\n").trim();
+  // conta o uso do dia (não conta pra admin, mas registra mesmo assim é inofensivo)
+  try {
+    const nNovo = (uso.dia === hoje ? (uso.n || 0) : 0) + 1;
+    await supabase.from("user_data").upsert({ user_id: uid, chave: "ff_coach_uso", valor: { dia: hoje, n: nNovo }, updated_at: new Date().toISOString() });
+  } catch (_e) { /* ignora */ }
   return json({ resposta: texto || "(sem resposta)" });
 });
