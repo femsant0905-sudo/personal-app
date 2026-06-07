@@ -117,6 +117,165 @@ var TREINOS = [
 var TREINOS_PADRAO = TREINOS; // modelo A–F (só como base opcional no editor)
 var TREINOS_VAZIO = TREINOS_PADRAO.map(function(d){return {id:d.id,nome:d.nome,sub:d.sub,ex:[]};}); // esqueleto sem exercícios (criar do zero)
 
+// Treinos padrão por sexo e nível (base pronta — usuário/admin pode editar depois)
+var TEMPLATES = {
+  homem: {
+    basico: [
+      {id:"hb-a",nome:"Treino A — Corpo todo",sub:"Pernas · Peito · Costas",ex:[
+        {nome:"Leg Press 45°",s:3,r:"15",desc:"Nunca trave o joelho no topo. Expire subindo."},
+        {nome:"Supino Máquina",s:3,r:"12–15",desc:"Expire na subida, nunca prenda o ar."},
+        {nome:"Puxada Frente Máquina",s:3,r:"12–15"},
+        {nome:"Desenvolvimento Máquina",s:3,r:"15"},
+        {nome:"Abdômen Máquina",s:3,r:"15"}
+      ]},
+      {id:"hb-b",nome:"Treino B — Corpo todo",sub:"Pernas · Peito · Costas",ex:[
+        {nome:"Cadeira Extensora",s:3,r:"15"},
+        {nome:"Mesa Flexora",s:3,r:"15"},
+        {nome:"Supino Inclinado Máquina",s:3,r:"12–15"},
+        {nome:"Remada Sentada Máquina",s:3,r:"12–15"},
+        {nome:"Panturrilha Máquina",s:3,r:"15–20"}
+      ]},
+      {id:"hb-c",nome:"Treino C — Corpo todo",sub:"Pernas · Ombro · Braços",ex:[
+        {nome:"Leg Press 45°",s:3,r:"15",desc:"Nunca trave o joelho no topo."},
+        {nome:"Elevação Lateral Cabo",s:3,r:"15"},
+        {nome:"Puxada Frente Máquina",s:3,r:"12–15"},
+        {nome:"Rosca Direta Máquina",s:3,r:"15"},
+        {nome:"Tríceps Polia Alta",s:3,r:"15"}
+      ]}
+    ],
+    intermediario: [
+      {id:"hi-push",nome:"Push — Peito · Ombro · Tríceps",sub:"Peito · Ombro · Tríceps",ex:[
+        {nome:"Supino Máquina",s:3,r:"12–15",desc:"Expire na subida, nunca prenda o ar."},
+        {nome:"Supino Inclinado Máquina",s:3,r:"12–15"},
+        {nome:"Desenvolvimento Máquina",s:3,r:"12–15"},
+        {nome:"Elevação Lateral Cabo",s:3,r:"15"},
+        {nome:"Tríceps Polia Alta",s:3,r:"15"}
+      ]},
+      {id:"hi-pull",nome:"Pull — Costas · Bíceps",sub:"Costas · Bíceps",ex:[
+        {nome:"Puxada Frente Máquina",s:3,r:"12–15"},
+        {nome:"Remada Sentada Máquina",s:3,r:"12–15"},
+        {nome:"Remada Alta Máquina",s:3,r:"12–15"},
+        {nome:"Rosca Direta Máquina",s:3,r:"12–15"},
+        {nome:"Encolhimento Máquina",s:3,r:"15"}
+      ]},
+      {id:"hi-legs",nome:"Legs — Pernas · Core",sub:"Pernas · Core",ex:[
+        {nome:"Leg Press 45°",s:3,r:"12–15",desc:"Nunca trave o joelho no topo. Expire subindo."},
+        {nome:"Cadeira Extensora",s:3,r:"15"},
+        {nome:"Mesa Flexora",s:3,r:"12–15"},
+        {nome:"Cadeira Adutora",s:3,r:"15"},
+        {nome:"Panturrilha Máquina",s:3,r:"15–20"},
+        {nome:"Abdômen Máquina",s:3,r:"15"}
+      ]}
+    ],
+    avancado: [
+      {id:"ha-push",nome:"Push — Peito · Ombro · Tríceps",sub:"Volume",ex:[
+        {nome:"Supino Máquina",s:4,r:"12–15",desc:"Expire na subida, nunca prenda o ar."},
+        {nome:"Supino Inclinado Máquina",s:4,r:"12–15"},
+        {nome:"Crucifixo Máquina",s:3,r:"15"},
+        {nome:"Desenvolvimento Máquina",s:4,r:"12–15"},
+        {nome:"Elevação Lateral Cabo",s:4,r:"15"},
+        {nome:"Tríceps Polia Alta",s:3,r:"15"},
+        {nome:"Tríceps Testa Máquina",s:3,r:"12–15"}
+      ]},
+      {id:"ha-pull",nome:"Pull — Costas · Bíceps",sub:"Volume",ex:[
+        {nome:"Puxada Frente Máquina",s:4,r:"12–15"},
+        {nome:"Remada Sentada Máquina",s:4,r:"12–15"},
+        {nome:"Remada Alta Máquina",s:3,r:"12–15"},
+        {nome:"Puxada Pegada Neutra",s:3,r:"12–15"},
+        {nome:"Rosca Direta Máquina",s:3,r:"12–15"},
+        {nome:"Rosca Martelo Cabo",s:3,r:"12"},
+        {nome:"Encolhimento Máquina",s:4,r:"15"}
+      ]},
+      {id:"ha-legs",nome:"Legs — Pernas · Core",sub:"Volume",ex:[
+        {nome:"Leg Press 45°",s:4,r:"12–15",desc:"Nunca trave o joelho no topo."},
+        {nome:"Cadeira Extensora",s:3,r:"15"},
+        {nome:"Mesa Flexora",s:4,r:"12–15"},
+        {nome:"Cadeira Flexora Unilateral",s:3,r:"12"},
+        {nome:"Cadeira Adutora",s:3,r:"15"},
+        {nome:"Panturrilha Máquina",s:4,r:"15–20"},
+        {nome:"Abdômen Cabo",s:3,r:"15"}
+      ]}
+    ]
+  },
+  mulher: {
+    basico: [
+      {id:"mb-a",nome:"Treino A — Inferior + core",sub:"Glúteo · Pernas · Core",ex:[
+        {nome:"Leg Press 45°",s:3,r:"15",desc:"Nunca trave o joelho no topo. Expire subindo."},
+        {nome:"Cadeira Abdutora",s:3,r:"15",desc:"Foco no glúteo médio, pausa 1s."},
+        {nome:"Mesa Flexora",s:3,r:"15"},
+        {nome:"Panturrilha Máquina",s:3,r:"15–20"},
+        {nome:"Abdômen Máquina",s:3,r:"15"}
+      ]},
+      {id:"mb-b",nome:"Treino B — Superior",sub:"Costas · Peito · Ombro",ex:[
+        {nome:"Puxada Frente Máquina",s:3,r:"12–15"},
+        {nome:"Remada Sentada Máquina",s:3,r:"12–15"},
+        {nome:"Supino Máquina",s:3,r:"12–15",desc:"Expire na subida."},
+        {nome:"Elevação Lateral Cabo",s:3,r:"15"},
+        {nome:"Tríceps Polia Alta",s:3,r:"15"}
+      ]},
+      {id:"mb-c",nome:"Treino C — Glúteo + pernas",sub:"Glúteo · Posterior",ex:[
+        {nome:"Elevação Pélvica (Glúteo)",s:3,r:"12–15",desc:"Contraia o glúteo no topo, pausa 1s."},
+        {nome:"Cadeira Extensora",s:3,r:"15"},
+        {nome:"Glúteo no Cabo",s:3,r:"15 cada"},
+        {nome:"Cadeira Adutora",s:3,r:"15"},
+        {nome:"Abdômen Cabo",s:3,r:"15"}
+      ]}
+    ],
+    intermediario: [
+      {id:"mi-infa",nome:"Inferior A — Quadríceps · Glúteo",sub:"Pernas · Glúteo",ex:[
+        {nome:"Leg Press 45°",s:4,r:"12–15",desc:"Nunca trave o joelho no topo."},
+        {nome:"Cadeira Extensora",s:3,r:"15"},
+        {nome:"Cadeira Abdutora",s:3,r:"15"},
+        {nome:"Glúteo no Cabo",s:3,r:"15 cada"},
+        {nome:"Panturrilha Máquina",s:3,r:"15–20"}
+      ]},
+      {id:"mi-sup",nome:"Superior",sub:"Costas · Ombro · Braços",ex:[
+        {nome:"Puxada Frente Máquina",s:3,r:"12–15"},
+        {nome:"Remada Sentada Máquina",s:3,r:"12–15"},
+        {nome:"Desenvolvimento Máquina",s:3,r:"12–15"},
+        {nome:"Elevação Lateral Cabo",s:3,r:"15"},
+        {nome:"Rosca Direta Máquina",s:3,r:"15"},
+        {nome:"Tríceps Polia Alta",s:3,r:"15"}
+      ]},
+      {id:"mi-infb",nome:"Inferior B — Posterior · Glúteo",sub:"Glúteo · Posterior",ex:[
+        {nome:"Elevação Pélvica (Glúteo)",s:4,r:"12–15",desc:"Contraia o glúteo no topo, pausa 1s."},
+        {nome:"Mesa Flexora",s:4,r:"12–15"},
+        {nome:"Cadeira Adutora",s:3,r:"15"},
+        {nome:"Cadeira Abdutora",s:3,r:"15"},
+        {nome:"Panturrilha Máquina",s:3,r:"15–20"},
+        {nome:"Abdômen Máquina",s:3,r:"15"}
+      ]}
+    ],
+    avancado: [
+      {id:"ma-infa",nome:"Inferior A — Quadríceps · Glúteo",sub:"Volume",ex:[
+        {nome:"Leg Press 45°",s:4,r:"12–15",desc:"Nunca trave o joelho no topo."},
+        {nome:"Cadeira Extensora",s:4,r:"15"},
+        {nome:"Cadeira Abdutora",s:4,r:"15"},
+        {nome:"Glúteo no Cabo",s:3,r:"15 cada"},
+        {nome:"Cadeira Adutora",s:3,r:"15"},
+        {nome:"Panturrilha Máquina",s:4,r:"15–20"}
+      ]},
+      {id:"ma-sup",nome:"Superior",sub:"Costas · Ombro · Braços",ex:[
+        {nome:"Puxada Frente Máquina",s:4,r:"12–15"},
+        {nome:"Remada Sentada Máquina",s:4,r:"12–15"},
+        {nome:"Desenvolvimento Máquina",s:3,r:"12–15"},
+        {nome:"Elevação Lateral Cabo",s:4,r:"15"},
+        {nome:"Crucifixo Máquina",s:3,r:"15"},
+        {nome:"Rosca Direta Máquina",s:3,r:"15"},
+        {nome:"Tríceps Polia Alta",s:3,r:"15"}
+      ]},
+      {id:"ma-infb",nome:"Inferior B — Posterior · Glúteo",sub:"Volume",ex:[
+        {nome:"Elevação Pélvica (Glúteo)",s:4,r:"12–15",desc:"Contraia o glúteo no topo."},
+        {nome:"Mesa Flexora",s:4,r:"12–15"},
+        {nome:"Cadeira Flexora Unilateral",s:3,r:"12"},
+        {nome:"Cadeira Abdutora",s:4,r:"15"},
+        {nome:"Panturrilha Máquina",s:4,r:"15–20"},
+        {nome:"Abdômen Cabo",s:3,r:"15"}
+      ]}
+    ]
+  }
+};
+
 var COMPOSTOS = ["Supino","Leg Press","Remada","Desenvolvimento","Puxada","Mesa Flexora"];
 
 var REFEICOES = [
@@ -632,7 +791,7 @@ function renderTreinoExec(){
     if(isOpen){
       h+='<div style="margin-top:16px" onclick="event.stopPropagation()">';
       // dica de execução
-      h+='<div style="font-size:12px;color:#7a9a7a;background:#0a0f0a;border-radius:12px;padding:14px 16px;margin-bottom:14px;line-height:1.8;border-left:2px solid '+(comp?"#f97316":"#3d5a3d")+'">'+e.desc+'</div>';
+      if(e.desc)h+='<div style="font-size:12px;color:#7a9a7a;background:#0a0f0a;border-radius:12px;padding:14px 16px;margin-bottom:14px;line-height:1.8;border-left:2px solid '+(comp?"#f97316":"#3d5a3d")+'">'+e.desc+'</div>';
       // séries
       for(var s=1;s<=e.s;s++){
         var done=!!logEx[s];
@@ -1320,6 +1479,16 @@ async function carregarAlvo(){
 }
 function setAdminMode(m){adminMode=m;adminMsg="";renderAdmin();carregarAlvo();}
 function usarModeloTreino(){if(planoEdit&&planoEdit.some(function(d){return d.ex&&d.ex.length;})&&!confirm("Substituir o treino atual pelo modelo padrão A–F?"))return;planoEdit=JSON.parse(JSON.stringify(TREINOS_PADRAO));renderAdmin();}
+function usarTemplate(nivel){
+  var alvo=adminUsers.filter(function(u){return adminAlvo&&u.id===adminAlvo.id;})[0]||currentUser;
+  var sx=String((alvo&&alvo.saude&&alvo.saude.sexo)||(currentUser.saude&&currentUser.saude.sexo)||"").toLowerCase();
+  var sexo=sx.indexOf("mulher")>=0?"mulher":"homem";
+  var tpl=TEMPLATES[sexo]&&TEMPLATES[sexo][nivel];
+  if(!tpl)return;
+  if(planoEdit&&planoEdit.some(function(d){return d.ex&&d.ex.length;})&&!confirm("Isso substitui o treino atual pelo padrão "+nivel+". Continuar?"))return;
+  planoEdit=JSON.parse(JSON.stringify(tpl));
+  renderAdmin();
+}
 function usarModeloDieta(){if(dietaEdit&&dietaEdit.length&&!confirm("Substituir a dieta atual pelo modelo padrão?"))return;dietaEdit=JSON.parse(JSON.stringify(REFEICOES_PADRAO));renderAdmin();}
 function addDia(){if(planoEdit){planoEdit.push({id:"d"+Date.now().toString(36)+Math.floor(Math.random()*1000),nome:"",sub:"",ex:[]});renderAdmin();}}
 function rmDia(d){if(planoEdit){planoEdit.splice(d,1);renderAdmin();}}
@@ -1430,7 +1599,10 @@ function renderAdmin(){
       h+='</div>';
     });
     h+='<button onclick="addDia()" style="width:100%;padding:11px;background:#10243a;color:#7ab8f0;border:1px solid #24496e;border-radius:10px;cursor:pointer;font-size:13px;font-weight:800;margin-bottom:8px">+ Adicionar dia de treino</button>';
-    h+='<button onclick="usarModeloTreino()" style="width:100%;padding:9px;background:#141f14;color:#7a9a7a;border:1px solid #1e2e1e;border-radius:10px;cursor:pointer;font-size:12px;font-weight:700;margin-bottom:8px">Usar modelo pronto (A–F) como base</button>';
+    h+='<div style="font-size:10px;color:#7a9a7a;font-weight:700;letter-spacing:.08em;text-transform:uppercase;margin:4px 0 6px">Começar de um treino padrão</div>';
+    h+='<div style="display:flex;gap:6px;margin-bottom:8px">';
+    [["basico","Básico"],["intermediario","Intermediário"],["avancado","Avançado"]].forEach(function(nv){h+='<button onclick="usarTemplate(\''+nv[0]+'\')" style="flex:1;padding:9px 4px;background:#141f14;color:#7a9a7a;border:1px solid #1e2e1e;border-radius:10px;cursor:pointer;font-size:11px;font-weight:700">'+nv[1]+'</button>';});
+    h+='</div>';
     h+='<button class="btn-main" onclick="salvarPlano()" style="margin-bottom:8px">SALVAR TREINO</button>';
   } else {
     if(!dietaEdit){h+='<div style="font-size:13px;color:#7a9a7a;padding:18px 0">Carregando dieta...</div>';document.getElementById("pg-admin").innerHTML=h;return;}
@@ -1472,6 +1644,8 @@ function afterAuth(){
 
 // ── ONBOARDING (primeiro login) ───────────────────────────────────────────────
 function onbErro(msg){var e=document.getElementById("onb-erro");if(e)e.textContent=msg;}
+var onbSexo="";
+function setOnbSexo(v){onbSexo=v;renderOnboarding();}
 function renderOnboarding(){
   document.querySelectorAll(".page").forEach(function(p){p.classList.remove("active");});
   document.querySelector(".nav").style.display="none";
@@ -1480,6 +1654,9 @@ function renderOnboarding(){
   h+='<div style="max-width:380px;margin:0 auto;padding:54px 22px">';
   h+='<div style="margin-bottom:28px"><div style="font-size:26px;font-weight:900;letter-spacing:-.03em">Bem-vindo, <span style="color:#f97316">'+primeiroNome()+'</span></div>';
   h+='<div style="font-size:13px;color:#7a9a7a;margin-top:8px;line-height:1.6">Só uma vez: conte um pouco sobre você pra personalizar o app.</div></div>';
+  h+='<div style="margin-bottom:16px"><div style="font-size:11px;color:#7a9a7a;font-weight:700;letter-spacing:.08em;text-transform:uppercase;margin-bottom:8px">Sexo</div><div style="display:flex;gap:6px">';
+  ["Homem","Mulher"].forEach(function(o){h+='<button class="pill '+(onbSexo===o?"active":"")+'" onclick="setOnbSexo(\''+o+'\')">'+o+'</button>';});
+  h+='</div></div>';
   h+=campo("onb-altura","Altura (em cm)","ex: 158");
   h+=campo("onb-peso","Peso atual (kg)","ex: 80");
   h+=campo("onb-meta","Peso meta (kg)","ex: 72");
@@ -1489,14 +1666,16 @@ function renderOnboarding(){
 }
 async function salvarOnboarding(){
   var alturaCm=numBR(val("onb-altura")),pesoA=numBR(val("onb-peso")),meta=numBR(val("onb-meta"));
+  if(!onbSexo)return onbErro("Selecione o sexo.");
   if(!alturaCm||alturaCm<120||alturaCm>230)return onbErro("Informe a altura em cm (ex: 158).");
   if(!pesoA||pesoA<30||pesoA>400)return onbErro("Peso atual inválido.");
   if(!meta||meta<30||meta>400)return onbErro("Peso meta inválido.");
   var altura=alturaCm/100;
+  var novaSaude=Object.assign({},currentUser.saude||{},{sexo:onbSexo});
   onbErro("Salvando...");
-  var res=await sb.from("profiles").update({altura:altura,peso_inicial:pesoA,peso_meta:meta}).eq("id",currentUser.id);
+  var res=await sb.from("profiles").update({altura:altura,peso_inicial:pesoA,peso_meta:meta,saude:novaSaude}).eq("id",currentUser.id);
   if(res.error)return onbErro("Erro ao salvar. Tente de novo.");
-  currentUser.altura=altura;currentUser.peso_inicial=pesoA;currentUser.peso_meta=meta;
+  currentUser.altura=altura;currentUser.peso_inicial=pesoA;currentUser.peso_meta=meta;currentUser.saude=novaSaude;
   loadUserData();
   if(!pesos.length){pesos.push({data:hoje(),peso:pesoA});save();}
   await enterApp();
@@ -1537,6 +1716,7 @@ function renderSaude(){
   h+='<div style="flex:1"><div style="font-size:20px;font-weight:900">Perfil de Saúde</div><div style="font-size:12px;color:#7a9a7a">Pra montar treino e dieta certos pra você</div></div></div>';
   if(saudeMsg)h+='<div style="font-size:13px;color:'+(saudeMsg.indexOf("Erro")>=0?"#f87171":"#4ade80")+';margin-bottom:10px;font-weight:700">'+saudeMsg+'</div>';
   h+='<div class="card">';
+  h+=pills("sexo","Sexo",["Homem","Mulher"]);
   h+=pills("objetivo","Objetivo principal",["Emagrecer","Ganhar massa","Saúde","Condicionamento"]);
   h+=pills("nivel","Nível de treino",["Iniciante","Intermediário","Avançado"]);
   h+=pills("dias","Dias por semana",["2","3","4","5","6"]);
