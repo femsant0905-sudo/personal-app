@@ -126,6 +126,52 @@ const TOOL_TREINO = {
     required: ["plano"],
   },
 };
+// deno-lint-ignore no-explicit-any
+function sanitizeDieta(dieta: any): any[] {
+  if (!Array.isArray(dieta)) return [];
+  const num = (v: any) => { const n = parseInt(v); return isNaN(n) ? 0 : n; };
+  return dieta.map((r: any) => ({
+    id: "r" + Math.random().toString(36).slice(2, 8),
+    nome: String(r?.nome || "").trim(),
+    hora: String(r?.hora || "").trim(),
+    opcoes: (Array.isArray(r?.opcoes) ? r.opcoes : []).filter((o: any) => o && String(o.label || "").trim()).map((o: any) => ({
+      label: String(o.label).trim(), kcal: num(o.kcal), prot: num(o.prot), carb: num(o.carb), gord: num(o.gord), sodio: num(o.sodio),
+      itens: (Array.isArray(o.itens) ? o.itens : (typeof o.itens === "string" ? String(o.itens).split("\n") : [])).map((s: any) => String(s).trim()).filter(Boolean),
+    })),
+  })).filter((r: any) => r.nome && r.opcoes.length);
+}
+const TOOL_DIETA = {
+  name: "atualizar_dieta",
+  description: "Atualiza/substitui o plano alimentar do usuário no app. Use quando ele pedir uma dieta nova ou um ajuste, ou quando combinarem. Respeite restrições alimentares, gota e a meta de macros dele. Cada refeição tem opções, cada opção com macros e itens.",
+  input_schema: {
+    type: "object",
+    properties: {
+      dieta: {
+        type: "array", description: "Refeições do dia",
+        items: {
+          type: "object",
+          properties: {
+            nome: { type: "string", description: "Nome da refeição (ex: Almoço)" },
+            hora: { type: "string", description: "Horário (ex: 12:00)" },
+            opcoes: {
+              type: "array", description: "Opções da refeição",
+              items: {
+                type: "object",
+                properties: {
+                  label: { type: "string" }, kcal: { type: "integer" }, prot: { type: "integer" }, carb: { type: "integer" }, gord: { type: "integer" }, sodio: { type: "integer" },
+                  itens: { type: "array", items: { type: "string" }, description: "alimentos/itens" },
+                },
+                required: ["label", "kcal", "prot", "carb", "gord"],
+              },
+            },
+          },
+          required: ["nome", "opcoes"],
+        },
+      },
+    },
+    required: ["dieta"],
+  },
+};
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
@@ -179,15 +225,16 @@ Deno.serve(async (req: Request) => {
       "- Você NÃO é médico. Para dor no peito, sintomas preocupantes, alterações de pressão/frequência cardíaca ou decisões sobre medicação, oriente procurar o médico/cardiologista — não dê veredito clínico.\n" +
       "- Se faltar dado pra responder bem, peça ao usuário ou sugira registrar no app.\n" +
       "- Foque no que ajuda o objetivo dele.\n" +
-      "- Você PODE atualizar o treino do usuário no app com a ferramenta atualizar_treino — use quando ele pedir um treino novo/ajuste ou quando combinarem na conversa. Antes de chamar, diga em 1 frase o que vai montar; depois, avise que salvou e que ele vê na aba Treino e pode pedir ajustes. NUNCA altere o treino sem o usuário querer.\n\n" +
+      "- Você PODE atualizar o TREINO (ferramenta atualizar_treino) e a DIETA (ferramenta atualizar_dieta) do usuário no app — use quando ele pedir algo novo/ajuste ou quando combinarem na conversa. Antes de chamar, diga em 1 frase o que vai montar; depois, avise que salvou e que ele vê na aba Treino/Dieta e pode pedir ajustes. NUNCA altere sem o usuário querer.\n\n" +
       "DADOS DO USUÁRIO (privados, só dele):\n" + contexto,
     cache_control: { type: "ephemeral" },
   }];
 
-  const tools = [TOOL_TREINO];
+  const tools = [TOOL_TREINO, TOOL_DIETA];
   // deno-lint-ignore no-explicit-any
   const convo: any[] = msgs.slice();
   let treinoAtualizado = false;
+  let dietaAtualizada = false;
   let texto = "";
   for (let round = 0; round < 3; round++) {
     let resp: Response;
@@ -201,18 +248,33 @@ Deno.serve(async (req: Request) => {
     if (!resp.ok) { const detalhe = await resp.text(); return json({ erro: "Erro no coach.", detalhe }, 502); }
     const data = await resp.json();
     const blocks = data?.content || [];
-    const toolUse = blocks.find((b: any) => b.type === "tool_use" && b.name === "atualizar_treino");
-    if (data.stop_reason === "tool_use" && toolUse) {
-      const plano = sanitizePlano(toolUse.input?.plano);
-      let resultText = "Treino atualizado com sucesso.";
-      if (!plano.length) { resultText = "Plano vazio — não alterei nada."; }
-      else {
-        const up = await supabase.from("planos_treino").upsert({ user_id: uid, plano, criado_por: uid, updated_at: new Date().toISOString() });
-        if (up.error) resultText = "Erro ao salvar o treino: " + up.error.message;
-        else treinoAtualizado = true;
+    const toolUses = blocks.filter((b: any) => b.type === "tool_use");
+    if (data.stop_reason === "tool_use" && toolUses.length) {
+      // deno-lint-ignore no-explicit-any
+      const results: any[] = [];
+      for (const tu of toolUses) {
+        let resultText = "";
+        if (tu.name === "atualizar_treino") {
+          const plano = sanitizePlano(tu.input?.plano);
+          if (!plano.length) resultText = "Plano de treino vazio — não alterei.";
+          else {
+            const up = await supabase.from("planos_treino").upsert({ user_id: uid, plano, criado_por: uid, updated_at: new Date().toISOString() });
+            if (up.error) resultText = "Erro ao salvar o treino: " + up.error.message;
+            else { treinoAtualizado = true; resultText = "Treino atualizado com sucesso."; }
+          }
+        } else if (tu.name === "atualizar_dieta") {
+          const dieta = sanitizeDieta(tu.input?.dieta);
+          if (!dieta.length) resultText = "Dieta vazia — não alterei.";
+          else {
+            const up = await supabase.from("planos_dieta").upsert({ user_id: uid, plano: dieta, criado_por: uid, updated_at: new Date().toISOString() });
+            if (up.error) resultText = "Erro ao salvar a dieta: " + up.error.message;
+            else { dietaAtualizada = true; resultText = "Dieta atualizada com sucesso."; }
+          }
+        } else { resultText = "Ferramenta desconhecida."; }
+        results.push({ type: "tool_result", tool_use_id: tu.id, content: resultText });
       }
       convo.push({ role: "assistant", content: blocks });
-      convo.push({ role: "user", content: [{ type: "tool_result", tool_use_id: toolUse.id, content: resultText }] });
+      convo.push({ role: "user", content: results });
       continue;
     }
     texto = blocks.filter((b: any) => b.type === "text").map((b: any) => b.text).join("\n").trim();
@@ -222,5 +284,5 @@ Deno.serve(async (req: Request) => {
     const nNovo = (uso.dia === hoje ? (uso.n || 0) : 0) + 1;
     await supabase.from("user_data").upsert({ user_id: uid, chave: "ff_coach_uso", valor: { dia: hoje, n: nNovo }, updated_at: new Date().toISOString() });
   } catch (_e) { /* ignora */ }
-  return json({ resposta: texto || "(sem resposta)", treino_atualizado: treinoAtualizado });
+  return json({ resposta: texto || "(sem resposta)", treino_atualizado: treinoAtualizado, dieta_atualizada: dietaAtualizada });
 });

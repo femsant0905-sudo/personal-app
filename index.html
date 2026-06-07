@@ -1762,6 +1762,7 @@ async function enviarCoach(){
     } else {
       coachMsgs.push({role:"assistant",content:(r.data&&r.data.resposta)||"(sem resposta)"});
       if(r.data&&r.data.treino_atualizado){try{await pullPlano();}catch(_e){}} // recarrega o treino novo
+      if(r.data&&r.data.dieta_atualizada){try{await pullDieta();}catch(_e){}} // recarrega a dieta nova
     }
     save();renderCoach();
   }catch(e){coachLoading=false;coachMsgs.push({role:"assistant",content:"(falha de conexão)"});save();renderCoach();}
