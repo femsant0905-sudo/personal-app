@@ -81,6 +81,52 @@ function montarContexto(prof: any, ud: any, ptreino: any): string {
   return L.join("\n");
 }
 
+const COMPOSTOS = ["Supino", "Leg Press", "Remada", "Desenvolvimento", "Puxada", "Mesa Flexora", "Agachamento", "Elevação Pélvica"];
+function isComp(n: string): boolean { const x = String(n || ""); return COMPOSTOS.some((k) => x.indexOf(k) >= 0); }
+// deno-lint-ignore no-explicit-any
+function sanitizePlano(plano: any): any[] {
+  if (!Array.isArray(plano)) return [];
+  return plano.map((d: any) => ({
+    id: "d" + Math.random().toString(36).slice(2, 8),
+    nome: String(d?.nome || "").trim(),
+    sub: String(d?.sub || "").trim(),
+    ex: (Array.isArray(d?.ex) ? d.ex : []).filter((e: any) => e && String(e.nome || "").trim()).map((e: any) => ({
+      nome: String(e.nome).trim(), s: parseInt(e.s) || 3, r: String(e.r || "").trim() || "12", comp: isComp(e.nome), desc: String(e.desc || "").trim(),
+    })),
+  })).filter((d: any) => d.nome || d.ex.length);
+}
+const TOOL_TREINO = {
+  name: "atualizar_treino",
+  description: "Atualiza/substitui o plano de treino do usuário no app. Use quando o usuário pedir um treino novo ou um ajuste, ou quando combinarem isso na conversa. Respeite SEMPRE as restrições do usuário (cardíaco: sem Valsalva/cargas máximas, 12–15 reps, descanso 60–90s; lesões).",
+  input_schema: {
+    type: "object",
+    properties: {
+      plano: {
+        type: "array", description: "Lista de dias de treino",
+        items: {
+          type: "object",
+          properties: {
+            nome: { type: "string", description: "Nome do dia (ex: Push — Peito/Ombro/Tríceps)" },
+            sub: { type: "string", description: "Grupos musculares (opcional)" },
+            ex: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  nome: { type: "string" }, s: { type: "integer", description: "séries" }, r: { type: "string", description: "reps, ex: 12–15" }, desc: { type: "string", description: "dica curta (opcional)" },
+                },
+                required: ["nome", "s", "r"],
+              },
+            },
+          },
+          required: ["nome", "ex"],
+        },
+      },
+    },
+    required: ["plano"],
+  },
+};
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (req.method !== "POST") return json({ erro: "Método não permitido." }, 405);
@@ -132,27 +178,49 @@ Deno.serve(async (req: Request) => {
       "- Respeite SEMPRE as restrições, lesões e condições do usuário. Nunca recomende algo contraindicado (ex.: restrição cardíaca = nada de Valsalva/cargas máximas; gota = atenção a purinas e hidratação).\n" +
       "- Você NÃO é médico. Para dor no peito, sintomas preocupantes, alterações de pressão/frequência cardíaca ou decisões sobre medicação, oriente procurar o médico/cardiologista — não dê veredito clínico.\n" +
       "- Se faltar dado pra responder bem, peça ao usuário ou sugira registrar no app.\n" +
-      "- Foque no que ajuda o objetivo dele.\n\n" +
+      "- Foque no que ajuda o objetivo dele.\n" +
+      "- Você PODE atualizar o treino do usuário no app com a ferramenta atualizar_treino — use quando ele pedir um treino novo/ajuste ou quando combinarem na conversa. Antes de chamar, diga em 1 frase o que vai montar; depois, avise que salvou e que ele vê na aba Treino e pode pedir ajustes. NUNCA altere o treino sem o usuário querer.\n\n" +
       "DADOS DO USUÁRIO (privados, só dele):\n" + contexto,
     cache_control: { type: "ephemeral" },
   }];
 
-  let resp: Response;
-  try {
-    resp = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "x-api-key": ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01" },
-      body: JSON.stringify({ model: MODEL, max_tokens: 1024, system, messages: msgs }),
-    });
-  } catch (_e) { return json({ erro: "Falha ao conectar na API do Claude." }, 502); }
-
-  if (!resp.ok) { const detalhe = await resp.text(); return json({ erro: "Erro no coach.", detalhe }, 502); }
-  const data = await resp.json();
-  const texto = (data?.content || []).filter((b: any) => b.type === "text").map((b: any) => b.text).join("\n").trim();
-  // conta o uso do dia (não conta pra admin, mas registra mesmo assim é inofensivo)
+  const tools = [TOOL_TREINO];
+  // deno-lint-ignore no-explicit-any
+  const convo: any[] = msgs.slice();
+  let treinoAtualizado = false;
+  let texto = "";
+  for (let round = 0; round < 3; round++) {
+    let resp: Response;
+    try {
+      resp = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-api-key": ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01" },
+        body: JSON.stringify({ model: MODEL, max_tokens: 1500, system, tools, messages: convo }),
+      });
+    } catch (_e) { return json({ erro: "Falha ao conectar na API do Claude." }, 502); }
+    if (!resp.ok) { const detalhe = await resp.text(); return json({ erro: "Erro no coach.", detalhe }, 502); }
+    const data = await resp.json();
+    const blocks = data?.content || [];
+    const toolUse = blocks.find((b: any) => b.type === "tool_use" && b.name === "atualizar_treino");
+    if (data.stop_reason === "tool_use" && toolUse) {
+      const plano = sanitizePlano(toolUse.input?.plano);
+      let resultText = "Treino atualizado com sucesso.";
+      if (!plano.length) { resultText = "Plano vazio — não alterei nada."; }
+      else {
+        const up = await supabase.from("planos_treino").upsert({ user_id: uid, plano, criado_por: uid, updated_at: new Date().toISOString() });
+        if (up.error) resultText = "Erro ao salvar o treino: " + up.error.message;
+        else treinoAtualizado = true;
+      }
+      convo.push({ role: "assistant", content: blocks });
+      convo.push({ role: "user", content: [{ type: "tool_result", tool_use_id: toolUse.id, content: resultText }] });
+      continue;
+    }
+    texto = blocks.filter((b: any) => b.type === "text").map((b: any) => b.text).join("\n").trim();
+    break;
+  }
   try {
     const nNovo = (uso.dia === hoje ? (uso.n || 0) : 0) + 1;
     await supabase.from("user_data").upsert({ user_id: uid, chave: "ff_coach_uso", valor: { dia: hoje, n: nNovo }, updated_at: new Date().toISOString() });
   } catch (_e) { /* ignora */ }
-  return json({ resposta: texto || "(sem resposta)" });
+  return json({ resposta: texto || "(sem resposta)", treino_atualizado: treinoAtualizado });
 });

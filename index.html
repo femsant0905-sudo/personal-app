@@ -1761,6 +1761,7 @@ async function enviarCoach(){
       coachMsgs.push({role:"assistant",content:"(erro ao responder"+(msg?": "+msg:"")+")"});
     } else {
       coachMsgs.push({role:"assistant",content:(r.data&&r.data.resposta)||"(sem resposta)"});
+      if(r.data&&r.data.treino_atualizado){try{await pullPlano();}catch(_e){}} // recarrega o treino novo
     }
     save();renderCoach();
   }catch(e){coachLoading=false;coachMsgs.push({role:"assistant",content:"(falha de conexão)"});save();renderCoach();}
