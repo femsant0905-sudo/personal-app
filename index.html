@@ -383,7 +383,7 @@ function uk(k){return "u_"+(currentUser?currentUser.id:"anon")+"_"+k;}
 function sget(k,d){try{var v=localStorage.getItem(uk(k));return v?JSON.parse(v):d;}catch(e){return d;}}
 function sset(k,v){try{localStorage.setItem(uk(k),JSON.stringify(v));}catch(e){}}
 
-var pesos,dietaLog,treinos,pressoes,diario,cargaHist,referencias,whoopData,coachMsgs,trocaTreino;
+var pesos,dietaLog,treinos,pressoes,diario,cargaHist,referencias,whoopData,coachMsgs,trocaTreino,bodyFat;
 function loadUserData(){
   pesos       = sget("ff_pesos",       []);
   dietaLog    = sget("ff_dieta",       {});
@@ -395,6 +395,7 @@ function loadUserData(){
   whoopData   = sget("ff_whoop",       []); // [{data, rhr, hrv, recovery}] importado do Whoop
   coachMsgs   = sget("ff_coach",       []); // histórico do chat com o coach [{role,content}]
   trocaTreino = sget("ff_troca",       ""); // data ISO pra lembrar de revisar/trocar o treino
+  bodyFat     = sget("ff_bodyfat",     []); // [{data, bf}] gordura corporal %
 }
 
 function save(){
@@ -402,12 +403,12 @@ function save(){
   sset("ff_pesos",pesos); sset("ff_dieta",dietaLog);
   sset("ff_treinos",treinos); sset("ff_pressoes",pressoes);
   sset("ff_diario",diario); sset("ff_cargas",cargaHist);
-  sset("ff_referencias",referencias); sset("ff_whoop",whoopData); sset("ff_coach",coachMsgs); sset("ff_troca",trocaTreino);
+  sset("ff_referencias",referencias); sset("ff_whoop",whoopData); sset("ff_coach",coachMsgs); sset("ff_troca",trocaTreino); sset("ff_bodyfat",bodyFat);
   // 2) espelha pro Supabase em segundo plano
   pushCloud("ff_pesos",pesos); pushCloud("ff_dieta",dietaLog);
   pushCloud("ff_treinos",treinos); pushCloud("ff_pressoes",pressoes);
   pushCloud("ff_diario",diario); pushCloud("ff_cargas",cargaHist);
-  pushCloud("ff_referencias",referencias); pushCloud("ff_whoop",whoopData); pushCloud("ff_coach",coachMsgs); pushCloud("ff_troca",trocaTreino);
+  pushCloud("ff_referencias",referencias); pushCloud("ff_whoop",whoopData); pushCloud("ff_coach",coachMsgs); pushCloud("ff_troca",trocaTreino); pushCloud("ff_bodyfat",bodyFat);
 }
 
 // envia um bloco pro Supabase (não bloqueia a tela; se falhar, fica só no aparelho)
@@ -1160,6 +1161,19 @@ function renderCorpo(){
   h+='<button onclick="salvarPesoCorpo()" id="btn-peso-corpo" style="padding:13px 22px;background:linear-gradient(135deg,#f97316,#fbbf24);color:#0a0f0a;border-radius:12px;border:none;cursor:pointer;font-size:14px;font-weight:800">OK</button></div>';
   h+='<div style="font-size:11px;color:#3d5a3d;margin-top:8px">Após o treino · Em jejum · Mesmo horário sempre</div></div>';
 
+  // ── Gordura corporal (%) ──
+  h+='<div class="card" style="border-left:3px solid #fbbf24;margin-bottom:10px">'+tag("Gordura corporal","#fbbf24");
+  h+='<div style="display:flex;gap:8px;margin-top:12px"><input class="inp" id="inp-bf" type="text" inputmode="decimal" placeholder="%" style="font-size:24px;font-family:monospace"/>';
+  h+='<button onclick="salvarBodyFat()" id="btn-bf" style="padding:13px 22px;background:#fbbf2422;color:#fbbf24;border-radius:12px;border:1px solid #fbbf2444;cursor:pointer;font-size:14px;font-weight:800">OK</button></div>';
+  var bfu=bodyFat.length?bodyFat[bodyFat.length-1]:null;
+  if(bfu){
+    h+='<div style="display:flex;justify-content:space-between;align-items:baseline;margin-top:14px"><div style="font-size:32px;font-weight:900;color:#fbbf24;letter-spacing:-.03em">'+f1(bfu.bf)+'<span style="font-size:14px;color:#7a9a7a;margin-left:2px">%</span></div>';
+    if(bodyFat.length>1){var bf0=bodyFat[0],difbf=bfu.bf-bf0.bf;h+='<div style="font-size:12px;color:'+(difbf<=0?"#4ade80":"#f87171")+';font-weight:700">'+(difbf<=0?"▼ ":"▲ ")+Math.abs(f1(difbf))+'% desde '+fmtD(bf0.data)+'</div>';}
+    h+='</div>';
+    h+=whoopChart("Gordura corporal — registros",bodyFat.slice(-14),"bf","#fbbf24");
+  }
+  h+='<div style="font-size:11px;color:#3d5a3d;margin-top:8px">Bioimpedância, dobras ou estimativa</div></div>';
+
   // ── Whoop: FC repouso & HRV ──
   h+='<div class="card" style="margin-bottom:10px">';
   h+='<div style="display:flex;justify-content:space-between;align-items:center">'+tag("FC repouso & HRV","#a78bfa");
@@ -1288,6 +1302,16 @@ function salvarPesoCorpo(){
   save();
   var btn=document.getElementById("btn-peso-corpo");
   if(btn){btn.textContent="✓";btn.style.background="#1a3a1a";btn.style.color="#4ade80";setTimeout(renderCorpo,1500);}
+}
+function salvarBodyFat(){
+  var v=numBR(document.getElementById("inp-bf").value);
+  if(!v||v<2||v>70)return;
+  bodyFat=bodyFat.filter(function(x){return x.data!==hoje();});
+  bodyFat.push({data:hoje(),bf:v});
+  bodyFat.sort(function(a,b){return a.data.localeCompare(b.data);});
+  save();
+  var btn=document.getElementById("btn-bf");
+  if(btn){btn.textContent="✓";btn.style.background="#1a3a1a";btn.style.color="#4ade80";setTimeout(renderCorpo,1200);}
 }
 
 function copiarRelatorio(ini,fim){
