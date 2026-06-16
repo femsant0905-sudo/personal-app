@@ -383,7 +383,7 @@ function uk(k){return "u_"+(currentUser?currentUser.id:"anon")+"_"+k;}
 function sget(k,d){try{var v=localStorage.getItem(uk(k));return v?JSON.parse(v):d;}catch(e){return d;}}
 function sset(k,v){try{localStorage.setItem(uk(k),JSON.stringify(v));}catch(e){}}
 
-var pesos,dietaLog,treinos,pressoes,diario,cargaHist,referencias,whoopData,coachMsgs;
+var pesos,dietaLog,treinos,pressoes,diario,cargaHist,referencias,whoopData,coachMsgs,trocaTreino;
 function loadUserData(){
   pesos       = sget("ff_pesos",       []);
   dietaLog    = sget("ff_dieta",       {});
@@ -394,6 +394,7 @@ function loadUserData(){
   referencias = sget("ff_referencias", {itens:[],nota:""}); // dados médicos de referência por usuário
   whoopData   = sget("ff_whoop",       []); // [{data, rhr, hrv, recovery}] importado do Whoop
   coachMsgs   = sget("ff_coach",       []); // histórico do chat com o coach [{role,content}]
+  trocaTreino = sget("ff_troca",       ""); // data ISO pra lembrar de revisar/trocar o treino
 }
 
 function save(){
@@ -401,12 +402,12 @@ function save(){
   sset("ff_pesos",pesos); sset("ff_dieta",dietaLog);
   sset("ff_treinos",treinos); sset("ff_pressoes",pressoes);
   sset("ff_diario",diario); sset("ff_cargas",cargaHist);
-  sset("ff_referencias",referencias); sset("ff_whoop",whoopData); sset("ff_coach",coachMsgs);
+  sset("ff_referencias",referencias); sset("ff_whoop",whoopData); sset("ff_coach",coachMsgs); sset("ff_troca",trocaTreino);
   // 2) espelha pro Supabase em segundo plano
   pushCloud("ff_pesos",pesos); pushCloud("ff_dieta",dietaLog);
   pushCloud("ff_treinos",treinos); pushCloud("ff_pressoes",pressoes);
   pushCloud("ff_diario",diario); pushCloud("ff_cargas",cargaHist);
-  pushCloud("ff_referencias",referencias); pushCloud("ff_whoop",whoopData); pushCloud("ff_coach",coachMsgs);
+  pushCloud("ff_referencias",referencias); pushCloud("ff_whoop",whoopData); pushCloud("ff_coach",coachMsgs); pushCloud("ff_troca",trocaTreino);
 }
 
 // envia um bloco pro Supabase (não bloqueia a tela; se falhar, fica só no aparelho)
@@ -430,6 +431,7 @@ async function pullCloud(){
 // ── UTILS ────────────────────────────────────────────────────────────────────
 function hoje(){return new Date().toISOString().split("T")[0];}
 function saudacao(){var hh=new Date().getHours();return hh<12?"Bom dia":hh<18?"Boa tarde":"Boa noite";}
+function unidadePeso(){return (currentUser&&currentUser.saude&&currentUser.saude.unidade)||"kg";} // kg ou lbs (carga dos exercícios)
 function numBR(v){return parseFloat(String(v||"").replace(",","."))||0;} // aceita vírgula (iPhone/BR)
 function primeiroNome(){return currentUser&&currentUser.nome?currentUser.nome.split(" ")[0]:"";}
 function imcCategoria(imc){
@@ -525,6 +527,7 @@ function renderHome(){
   h+='<div class="card" style="border-left:3px solid #a78bfa;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;cursor:pointer" onclick="openAdmin()"><div>'+tag(currentUser.role==="admin"?"Admin":"Plano","#a78bfa")+'<div style="font-size:16px;font-weight:800;margin-top:6px">'+(currentUser.role==="admin"?"Montar treinos":"Meu treino e dieta")+'</div><div style="font-size:12px;color:#7a9a7a;margin-top:2px">'+(currentUser.role==="admin"?"Editar o plano de cada cliente":"Criar/editar seu próprio plano")+'</div></div><div style="font-size:26px;color:#a78bfa">⚙</div></div>';
   h+='<div class="card" style="border-left:3px solid #4ade80;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;cursor:pointer" onclick="openSaude()"><div>'+tag("Saúde","#4ade80")+'<div style="font-size:16px;font-weight:800;margin-top:6px">'+((currentUser.saude&&currentUser.saude.objetivo)?"Meu perfil de saúde":"Complete seu perfil")+'</div><div style="font-size:12px;color:#7a9a7a;margin-top:2px">Objetivo · condições · restrições</div></div><div style="font-size:24px;color:#4ade80">♥</div></div>';
   h+='<div class="card" style="border-left:3px solid #60a5fa;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;cursor:pointer" onclick="openCoach()"><div>'+tag("Coach","#60a5fa")+'<div style="font-size:16px;font-weight:800;margin-top:6px">Falar com o Coach</div><div style="font-size:12px;color:#7a9a7a;margin-top:2px">Conselhos sobre treino e dieta</div></div><div style="font-size:24px;color:#60a5fa">💬</div></div>';
+  if(trocaTreino&&hoje()>=trocaTreino)h+='<div class="alert" style="cursor:pointer" onclick="openCoach()"><div class="alert-dot"></div>Hora de revisar/trocar seu treino — fale com o Coach ›</div>';
   if(!pesouHoje) h+='<div class="alert"><div class="alert-dot"></div>Registre seu peso hoje</div>';
   if(!medidoHoje)h+='<div class="alert"><div class="alert-dot"></div>Meça a pressão arterial hoje</div>';
 
@@ -787,7 +790,7 @@ function renderTreinoExec(){
     if(comp)h+=tag(ehPesado?"120s":"90s","#f97316"); else h+=tag(ehPesado?"90s":"60s","#7a9a7a");
     h+='</div>';
     h+='<div style="font-size:12px;color:#7a9a7a;margin-top:2px">'+e.s+' × '+e.r;
-    if(ultimaCarga)h+=' · <span style="color:#fbbf24">último: '+ultimaCarga+'kg</span>';
+    if(ultimaCarga)h+=' · <span style="color:#fbbf24">último: '+ultimaCarga+unidadePeso()+'</span>';
     h+='</div></div>';
     if(doneCount>0)h+=tag(doneCount+"/"+e.s,"#4ade80");
     h+='<div style="font-size:14px;color:#3d5a3d">'+(isOpen?"▲":"▼")+'</div></div>';
@@ -802,7 +805,7 @@ function renderTreinoExec(){
         var sugestao=ultimaCarga?ultimaCarga:"";
         h+='<div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">';
         h+='<div style="width:26px;height:26px;border-radius:7px;background:'+(done?"#4ade8022":"#243324")+';border:1.5px solid '+(done?"#4ade80":"#3d5a3d")+';display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;color:'+(done?"#4ade80":"#7a9a7a")+';flex-shrink:0">'+(done?"✓":s)+'</div>';
-        h+='<input type="number" placeholder="'+(sugestao?sugestao+"kg":"kg")+'" id="scarga-'+i+'-'+s+'" value="'+(logEx[s]?logEx[s].kg:"")+'" style="width:72px;background:#0a0f0a;border:1px solid '+(sugestao&&!logEx[s]?"#fbbf2444":"#243324")+';border-radius:9px;padding:9px 6px;font-size:16px;font-family:monospace;color:#eef5ee;outline:none;text-align:center;flex-shrink:0"/>';
+        h+='<input type="number" placeholder="'+(sugestao?sugestao+unidadePeso():unidadePeso())+'" id="scarga-'+i+'-'+s+'" value="'+(logEx[s]?logEx[s].kg:"")+'" style="width:72px;background:#0a0f0a;border:1px solid '+(sugestao&&!logEx[s]?"#fbbf2444":"#243324")+';border-radius:9px;padding:9px 6px;font-size:16px;font-family:monospace;color:#eef5ee;outline:none;text-align:center;flex-shrink:0"/>';
         h+='<input type="number" placeholder="reps" id="sreps-'+i+'-'+s+'" value="'+(logEx[s]?logEx[s].reps:"")+'" style="width:72px;background:#0a0f0a;border:1px solid #243324;border-radius:9px;padding:9px 6px;font-size:16px;font-family:monospace;color:#eef5ee;outline:none;text-align:center;flex-shrink:0"/>';
         h+='<button onclick="logSerie('+i+',\''+e.nome+'\','+s+')" style="flex:1;padding:9px 6px;background:'+(done?"#4ade8022":"#f97316")+';color:'+(done?"#4ade80":"#0a0f0a")+';border-radius:9px;border:none;cursor:pointer;font-size:13px;font-weight:800">OK</button>';
         h+='</div>';
@@ -1254,7 +1257,7 @@ function renderCorpo(){
         var ht=maxKg?Math.max(4,(kg/maxKg)*60):4;
         var isLast=s===hist[hist.length-1];
         h+='<div style="flex:1;display:flex;flex-direction:column;align-items:center">';
-        if(isLast)h+='<div style="font-size:9px;color:#f97316;font-weight:700;margin-bottom:2px">'+kg+'kg</div>';
+        if(isLast)h+='<div style="font-size:9px;color:#f97316;font-weight:700;margin-bottom:2px">'+kg+unidadePeso()+'</div>';
         h+='<div style="width:100%;background:'+(isLast?"#f97316":"#243324")+';border-radius:4px 4px 0 0;height:'+ht+'px;margin-top:'+(64-ht)+'px"></div>';
         h+='<div style="font-size:7px;color:#3d5a3d;margin-top:3px">'+s.data.slice(5)+'</div></div>';
       });
@@ -1263,7 +1266,7 @@ function renderCorpo(){
         var kgIni=Math.max.apply(null,hist[0].series.map(function(x){return parseFloat(x.kg)||0;}));
         var kgFim=Math.max.apply(null,hist[hist.length-1].series.map(function(x){return parseFloat(x.kg)||0;}));
         var dif=kgFim-kgIni;
-        h+='<div style="font-size:12px;margin-top:8px;font-weight:700;color:'+(dif>0?"#4ade80":dif<0?"#f87171":"#7a9a7a")+'">'+(dif>0?"▲ +":(dif<0?"▼ ":"→ "))+Math.abs(dif)+'kg desde o início</div>';
+        h+='<div style="font-size:12px;margin-top:8px;font-weight:700;color:'+(dif>0?"#4ade80":dif<0?"#f87171":"#7a9a7a")+'">'+(dif>0?"▲ +":(dif<0?"▼ ":"→ "))+Math.abs(dif)+unidadePeso()+' desde o início</div>';
       }
       h+='</div>';
     }
@@ -1346,7 +1349,7 @@ function exportLog(){
     var hist=cargaHist[ex];if(!hist||!hist.length)return;
     lines.push("  "+ex+":");
     hist.slice(-3).forEach(function(h2){
-      var ss=h2.series.map(function(s){return s.kg+"kg×"+s.reps;}).join(", ");
+      var ss=h2.series.map(function(s){return s.kg+unidadePeso()+"×"+s.reps;}).join(", ");
       lines.push("    "+h2.data+": "+ss);
     });
   });
@@ -1517,7 +1520,7 @@ async function salvarPlano(){
   adminMsg="Salvando...";renderAdmin();
   var r=await sb.from("planos_treino").upsert({user_id:adminAlvo.id,plano:planoEdit,criado_por:currentUser.id,updated_at:new Date().toISOString()});
   if(r.error){adminMsg="Erro ao salvar: "+r.error.message;renderAdmin();return;}
-  if(adminAlvo.id===currentUser.id)TREINOS=JSON.parse(JSON.stringify(planoEdit)); // se for o seu, aplica já
+  if(adminAlvo.id===currentUser.id){TREINOS=JSON.parse(JSON.stringify(planoEdit));var _t=new Date();_t.setDate(_t.getDate()+28);trocaTreino=_t.toISOString().slice(0,10);save();} // aplica já + agenda lembrete de troca (4 semanas)
   adminMsg="Treino de "+adminAlvo.nome+" salvo ✓";renderAdmin();
 }
 
@@ -1721,6 +1724,7 @@ function renderSaude(){
   if(saudeMsg)h+='<div style="font-size:13px;color:'+(saudeMsg.indexOf("Erro")>=0?"#f87171":"#4ade80")+';margin-bottom:10px;font-weight:700">'+saudeMsg+'</div>';
   h+='<div class="card">';
   h+=pills("sexo","Sexo",["Homem","Mulher"]);
+  h+=pills("unidade","Unidade de peso (exercícios)",["kg","lbs"]);
   h+=pills("objetivo","Objetivo principal",["Emagrecer","Ganhar massa","Saúde","Condicionamento"]);
   h+=pills("nivel","Nível de treino",["Iniciante","Intermediário","Avançado"]);
   h+=pills("dias","Dias por semana",["2","3","4","5","6"]);
