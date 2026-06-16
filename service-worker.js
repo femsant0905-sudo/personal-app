@@ -1,4 +1,4 @@
-var CACHE = 'personal-app-v1';
+var CACHE = 'personal-app-v2';
 var FILES = ['./', './index.html', './manifest.json'];
 
 self.addEventListener('install', function(e) {
