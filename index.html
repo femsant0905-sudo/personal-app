@@ -383,7 +383,7 @@ function uk(k){return "u_"+(currentUser?currentUser.id:"anon")+"_"+k;}
 function sget(k,d){try{var v=localStorage.getItem(uk(k));return v?JSON.parse(v):d;}catch(e){return d;}}
 function sset(k,v){try{localStorage.setItem(uk(k),JSON.stringify(v));}catch(e){}}
 
-var pesos,dietaLog,treinos,pressoes,diario,cargaHist,referencias,whoopData,coachMsgs,trocaTreino,bodyFat;
+var pesos,dietaLog,treinos,pressoes,diario,cargaHist,referencias,whoopData,coachMsgs,trocaTreino,bodyFat,comentHist;
 function loadUserData(){
   pesos       = sget("ff_pesos",       []);
   dietaLog    = sget("ff_dieta",       {});
@@ -396,6 +396,7 @@ function loadUserData(){
   coachMsgs   = sget("ff_coach",       []); // histórico do chat com o coach [{role,content}]
   trocaTreino = sget("ff_troca",       ""); // data ISO pra lembrar de revisar/trocar o treino
   bodyFat     = sget("ff_bodyfat",     []); // [{data, bf}] gordura corporal %
+  comentHist  = sget("ff_coment",      {}); // {exNome: última nota} pra ver na próxima vez
 }
 
 function save(){
@@ -403,12 +404,12 @@ function save(){
   sset("ff_pesos",pesos); sset("ff_dieta",dietaLog);
   sset("ff_treinos",treinos); sset("ff_pressoes",pressoes);
   sset("ff_diario",diario); sset("ff_cargas",cargaHist);
-  sset("ff_referencias",referencias); sset("ff_whoop",whoopData); sset("ff_coach",coachMsgs); sset("ff_troca",trocaTreino); sset("ff_bodyfat",bodyFat);
+  sset("ff_referencias",referencias); sset("ff_whoop",whoopData); sset("ff_coach",coachMsgs); sset("ff_troca",trocaTreino); sset("ff_bodyfat",bodyFat); sset("ff_coment",comentHist);
   // 2) espelha pro Supabase em segundo plano
   pushCloud("ff_pesos",pesos); pushCloud("ff_dieta",dietaLog);
   pushCloud("ff_treinos",treinos); pushCloud("ff_pressoes",pressoes);
   pushCloud("ff_diario",diario); pushCloud("ff_cargas",cargaHist);
-  pushCloud("ff_referencias",referencias); pushCloud("ff_whoop",whoopData); pushCloud("ff_coach",coachMsgs); pushCloud("ff_troca",trocaTreino); pushCloud("ff_bodyfat",bodyFat);
+  pushCloud("ff_referencias",referencias); pushCloud("ff_whoop",whoopData); pushCloud("ff_coach",coachMsgs); pushCloud("ff_troca",trocaTreino); pushCloud("ff_bodyfat",bodyFat); pushCloud("ff_coment",comentHist);
 }
 
 // envia um bloco pro Supabase (não bloqueia a tela; se falhar, fica só no aparelho)
@@ -798,6 +799,7 @@ function renderTreinoExec(){
       h+='<div style="margin-top:16px" onclick="event.stopPropagation()">';
       // dica de execução
       if(e.desc)h+='<div style="font-size:12px;color:#7a9a7a;background:#0a0f0a;border-radius:12px;padding:14px 16px;margin-bottom:14px;line-height:1.8;border-left:2px solid '+(comp?"#f97316":"#3d5a3d")+'">'+e.desc+'</div>';
+      if(comentHist[e.nome])h+='<div style="font-size:12px;color:#fbbf24;background:#1a1200;border:1px solid #3d2e00;border-radius:12px;padding:10px 14px;margin-bottom:14px;line-height:1.6">📝 Sua nota da última vez: '+escapeHtml(comentHist[e.nome])+'</div>';
       // séries
       for(var s=1;s<=e.s;s++){
         var done=!!logEx[s];
@@ -811,7 +813,7 @@ function renderTreinoExec(){
       }
       // comentário
       var comentKey="coment-"+e.nome;
-      var comentVal=(treinoLogs[comentKey])||"";
+      var comentVal=(treinoLogs[comentKey]!==undefined?treinoLogs[comentKey]:(comentHist[e.nome]||""));
       h+='<div style="margin-top:10px">';
       h+='<div style="font-size:10px;color:#7a9a7a;font-weight:700;letter-spacing:.08em;text-transform:uppercase;margin-bottom:6px">Comentário deste exercício</div>';
       h+='<textarea id="coment-'+i+'" rows="2" placeholder="Sentiu dor? Aumentou carga? Observações..." style="font-size:13px">'+comentVal+'</textarea>';
@@ -846,6 +848,7 @@ function salvarComent(exIdx,exNome){
   var el=document.getElementById("coment-"+exIdx);
   if(!el)return;
   treinoLogs["coment-"+exNome]=el.value;
+  comentHist[exNome]=el.value;save(); // persiste a nota pra próxima vez
   var btn=el.nextElementSibling;
   if(btn){btn.textContent="✓ Salvo";btn.style.color="#4ade80";setTimeout(function(){btn.textContent="Salvar comentário";btn.style.color="#7a9a7a";},1500);}
 }
@@ -871,6 +874,7 @@ function concluirTreino(){
       if(series.length)salvarCargaHistorico(e.nome,series);
     }
   });
+  treinoAtivo.ex.forEach(function(e){var c=treinoLogs["coment-"+e.nome];if(c!==undefined&&String(c).trim())comentHist[e.nome]=c;}); // guarda as notas pra próxima vez
   treinos[hoje()]={dia:treinoAtivo.id,logs:treinoLogs,duracao:treinoElapsed,gasto:(treinos[hoje()]&&treinos[hoje()].gasto)||""};
   save();
   treinoAtivo=null;openEx=-1;stopTimer();clearInterval(treinoClockIv);
