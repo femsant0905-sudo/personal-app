@@ -383,7 +383,7 @@ function uk(k){return "u_"+(currentUser?currentUser.id:"anon")+"_"+k;}
 function sget(k,d){try{var v=localStorage.getItem(uk(k));return v?JSON.parse(v):d;}catch(e){return d;}}
 function sset(k,v){try{localStorage.setItem(uk(k),JSON.stringify(v));}catch(e){}}
 
-var pesos,dietaLog,treinos,pressoes,diario,cargaHist,referencias,whoopData,coachMsgs,trocaTreino,bodyFat,comentHist;
+var pesos,dietaLog,treinos,pressoes,diario,cargaHist,referencias,whoopData,coachMsgs,trocaTreino,bodyFat,comentHist,trocaMeta;
 function loadUserData(){
   pesos       = sget("ff_pesos",       []);
   dietaLog    = sget("ff_dieta",       {});
@@ -394,7 +394,8 @@ function loadUserData(){
   referencias = sget("ff_referencias", {itens:[],nota:""}); // dados médicos de referência por usuário
   whoopData   = sget("ff_whoop",       []); // [{data, rhr, hrv, recovery}] importado do Whoop
   coachMsgs   = sget("ff_coach",       []); // histórico do chat com o coach [{role,content}]
-  trocaTreino = sget("ff_troca",       ""); // data ISO pra lembrar de revisar/trocar o treino
+  trocaTreino = sget("ff_troca",       ""); // data ISO do início do plano atual (conta treinos desde então)
+  trocaMeta   = sget("ff_trocameta",    12); // nº de treinos até sugerir trocar de plano
   bodyFat     = sget("ff_bodyfat",     []); // [{data, bf}] gordura corporal %
   comentHist  = sget("ff_coment",      {}); // {exNome: última nota} pra ver na próxima vez
 }
@@ -404,12 +405,12 @@ function save(){
   sset("ff_pesos",pesos); sset("ff_dieta",dietaLog);
   sset("ff_treinos",treinos); sset("ff_pressoes",pressoes);
   sset("ff_diario",diario); sset("ff_cargas",cargaHist);
-  sset("ff_referencias",referencias); sset("ff_whoop",whoopData); sset("ff_coach",coachMsgs); sset("ff_troca",trocaTreino); sset("ff_bodyfat",bodyFat); sset("ff_coment",comentHist);
+  sset("ff_referencias",referencias); sset("ff_whoop",whoopData); sset("ff_coach",coachMsgs); sset("ff_troca",trocaTreino); sset("ff_bodyfat",bodyFat); sset("ff_coment",comentHist); sset("ff_trocameta",trocaMeta);
   // 2) espelha pro Supabase em segundo plano
   pushCloud("ff_pesos",pesos); pushCloud("ff_dieta",dietaLog);
   pushCloud("ff_treinos",treinos); pushCloud("ff_pressoes",pressoes);
   pushCloud("ff_diario",diario); pushCloud("ff_cargas",cargaHist);
-  pushCloud("ff_referencias",referencias); pushCloud("ff_whoop",whoopData); pushCloud("ff_coach",coachMsgs); pushCloud("ff_troca",trocaTreino); pushCloud("ff_bodyfat",bodyFat); pushCloud("ff_coment",comentHist);
+  pushCloud("ff_referencias",referencias); pushCloud("ff_whoop",whoopData); pushCloud("ff_coach",coachMsgs); pushCloud("ff_troca",trocaTreino); pushCloud("ff_bodyfat",bodyFat); pushCloud("ff_coment",comentHist); pushCloud("ff_trocameta",trocaMeta);
 }
 
 // envia um bloco pro Supabase (não bloqueia a tela; se falhar, fica só no aparelho)
@@ -527,7 +528,8 @@ function renderHome(){
   h+='<div style="font-size:12px;color:#7a9a7a;font-weight:600;letter-spacing:.1em;text-transform:uppercase;margin-bottom:6px">'+diaStr+'</div>';
   h+='<div style="font-size:28px;font-weight:900;letter-spacing:-.03em;line-height:1.1">'+saudacao()+',<br><span style="color:#f97316">'+primeiroNome()+'.</span></div></div>';
   h+='<div class="card" style="border-left:3px solid #60a5fa;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;cursor:pointer" onclick="openCoach()"><div>'+tag("Coach","#60a5fa")+'<div style="font-size:16px;font-weight:800;margin-top:6px">Falar com o Coach</div><div style="font-size:12px;color:#7a9a7a;margin-top:2px">Conselhos sobre treino e dieta</div></div><div style="font-size:24px;color:#60a5fa">💬</div></div>';
-  if(trocaTreino&&hoje()>=trocaTreino)h+='<div class="alert" style="cursor:pointer" onclick="openCoach()"><div class="alert-dot"></div>Hora de revisar/trocar seu treino — fale com o Coach ›</div>';
+  var _tdesde=trocaTreino?Object.keys(treinos).filter(function(k){return k>=trocaTreino;}).length:0;
+  if(trocaTreino&&_tdesde>=trocaMeta)h+='<div class="alert" style="cursor:pointer" onclick="openCoach()"><div class="alert-dot"></div>Você já fez '+_tdesde+' treinos neste plano — hora de progredir/trocar. Fale com o Coach ›</div>';
 
   if(new Date().getDay()===1){
     var d2=new Date();d2.setDate(d2.getDate()-1);var semFim=d2.toISOString().split('T')[0];
@@ -705,6 +707,15 @@ function renderTreinoList(){
     h+='<div class="card" style="border-left:3px solid #3d5a3d"><div style="font-size:15px;font-weight:700;color:#7a9a7a">Nenhum treino montado ainda</div><div style="font-size:13px;color:#3d5a3d;margin-top:6px;line-height:1.5">'+(currentUser&&currentUser.role==="admin"?"Use ⚙ Montar treinos na tela inicial pra criar o seu.":"Crie o seu em “Meu treino e dieta” ou aguarde seu personal.")+'</div></div>';
     document.getElementById("pg-treino").innerHTML=h;return;
   }
+
+  var tDesde=trocaTreino?Object.keys(treinos).filter(function(k){return k>=trocaTreino;}).length:Object.keys(treinos).length;
+  var prontoTroca=tDesde>=trocaMeta;
+  h+='<div class="card" style="margin-bottom:14px">'+tag(prontoTroca?"Hora de trocar de treino":"Progresso do bloco",prontoTroca?"#4ade80":"#a78bfa");
+  h+='<div style="display:flex;justify-content:space-between;align-items:baseline;margin-top:8px;margin-bottom:8px"><div style="font-size:24px;font-weight:900">'+tDesde+'<span style="font-size:13px;color:#7a9a7a"> / '+trocaMeta+' treinos</span></div>';
+  h+='<div style="font-size:12px;color:'+(prontoTroca?"#4ade80":"#7a9a7a")+';font-weight:700">'+(prontoTroca?"pronto pra progredir":("faltam "+(trocaMeta-tDesde)))+'</div></div>';
+  h+=bar(tDesde,trocaMeta,6,"#a78bfa","#4ade80");
+  if(prontoTroca)h+='<div style="font-size:11px;color:#4ade80;margin-top:8px;cursor:pointer" onclick="openCoach()">Fale com o Coach pra progredir o treino ›</div>';
+  h+='</div>';
 
   diasComEx.forEach(function(t,idx){
     var feito=treinos[hoje()]&&treinos[hoje()].dia===t.id;
@@ -1547,7 +1558,7 @@ async function salvarPlano(){
   adminMsg="Salvando...";renderAdmin();
   var r=await sb.from("planos_treino").upsert({user_id:adminAlvo.id,plano:planoEdit,criado_por:currentUser.id,updated_at:new Date().toISOString()});
   if(r.error){adminMsg="Erro ao salvar: "+r.error.message;renderAdmin();return;}
-  if(adminAlvo.id===currentUser.id){TREINOS=JSON.parse(JSON.stringify(planoEdit));var _t=new Date();_t.setDate(_t.getDate()+28);trocaTreino=_t.toISOString().slice(0,10);save();} // aplica já + agenda lembrete de troca (4 semanas)
+  if(adminAlvo.id===currentUser.id){TREINOS=JSON.parse(JSON.stringify(planoEdit));trocaTreino=hoje();save();} // aplica já + marca o início do plano (conta treinos até trocar)
   adminMsg="Treino de "+adminAlvo.nome+" salvo ✓";renderAdmin();
 }
 
