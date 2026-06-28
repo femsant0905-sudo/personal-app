@@ -185,6 +185,19 @@ const TOOL_DIETA = {
   },
 };
 
+const TOOL_AGENDAR = {
+  name: "agendar_revisao",
+  description: "Agenda no app a data em que o plano de treino deve ser revisitado/progredido. Use SEMPRE que recomendar revisar o treino em algum prazo (ex: 'vamos revisar em 3-4 semanas'). Informe o prazo em DIAS a partir de hoje.",
+  input_schema: {
+    type: "object",
+    properties: {
+      dias: { type: "integer", description: "Daqui a quantos dias revisar (ex: 28 = 4 semanas, 21 = 3 semanas)" },
+      motivo: { type: "string", description: "Motivo curto (ex: força ainda progredindo)" },
+    },
+    required: ["dias"],
+  },
+};
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (req.method !== "POST") return json({ erro: "Método não permitido." }, 405);
@@ -238,16 +251,18 @@ Deno.serve(async (req: Request) => {
       "- Se faltar dado pra responder bem, peça ao usuário ou sugira registrar no app.\n" +
       "- Foque no que ajuda o objetivo dele.\n" +
       "- Você PODE atualizar o TREINO (ferramenta atualizar_treino) e a DIETA (ferramenta atualizar_dieta) do usuário no app — use quando ele pedir algo novo/ajuste ou quando combinarem na conversa. Antes de chamar, diga em 1 frase o que vai montar; depois, avise que salvou e que ele vê na aba Treino/Dieta e pode pedir ajustes. NUNCA altere sem o usuário querer.\n" +
-      "- Ao avaliar se deve progredir o treino, ANALISE A PROGRESSÃO DE CARGA dele (subindo / mantendo / caindo) e a recuperação (Whoop/HRV): só recomende subir carga ou volume se a força está mantida/subindo e a recuperação está ok. Se a força cai de forma consistente, priorize recuperação, proteína e sono em vez de mais treino. Cite os números dele na análise.\n\n" +
+      "- Ao avaliar se deve progredir o treino, ANALISE A PROGRESSÃO DE CARGA dele (subindo / mantendo / caindo) e a recuperação (Whoop/HRV): só recomende subir carga ou volume se a força está mantida/subindo e a recuperação está ok. Se a força cai de forma consistente, priorize recuperação, proteína e sono em vez de mais treino. Cite os números dele na análise.\n" +
+      "- Quando recomendar revisar o treino num prazo (ex: 3-4 semanas), use a ferramenta agendar_revisao pra marcar essa data no app — assim o app lembra ele sozinho. Diga ao usuário a data/prazo que agendou.\n\n" +
       "DADOS DO USUÁRIO (privados, só dele):\n" + contexto,
     cache_control: { type: "ephemeral" },
   }];
 
-  const tools = [TOOL_TREINO, TOOL_DIETA];
+  const tools = [TOOL_TREINO, TOOL_DIETA, TOOL_AGENDAR];
   // deno-lint-ignore no-explicit-any
   const convo: any[] = msgs.slice();
   let treinoAtualizado = false;
   let dietaAtualizada = false;
+  let revisaoEm = "";
   let texto = "";
   for (let round = 0; round < 3; round++) {
     let resp: Response;
@@ -283,6 +298,13 @@ Deno.serve(async (req: Request) => {
             if (up.error) resultText = "Erro ao salvar a dieta: " + up.error.message;
             else { dietaAtualizada = true; resultText = "Dieta atualizada com sucesso."; }
           }
+        } else if (tu.name === "agendar_revisao") {
+          let dias = parseInt(tu.input?.dias, 10);
+          if (isNaN(dias) || dias < 1) dias = 28;
+          if (dias > 120) dias = 120;
+          const d = new Date(); d.setDate(d.getDate() + dias);
+          revisaoEm = d.toISOString().slice(0, 10);
+          resultText = "Revisão agendada para " + revisaoEm + ".";
         } else { resultText = "Ferramenta desconhecida."; }
         results.push({ type: "tool_result", tool_use_id: tu.id, content: resultText });
       }
@@ -297,5 +319,5 @@ Deno.serve(async (req: Request) => {
     const nNovo = (uso.dia === hoje ? (uso.n || 0) : 0) + 1;
     await supabase.from("user_data").upsert({ user_id: uid, chave: "ff_coach_uso", valor: { dia: hoje, n: nNovo }, updated_at: new Date().toISOString() });
   } catch (_e) { /* ignora */ }
-  return json({ resposta: texto || "(sem resposta)", treino_atualizado: treinoAtualizado, dieta_atualizada: dietaAtualizada });
+  return json({ resposta: texto || "(sem resposta)", treino_atualizado: treinoAtualizado, dieta_atualizada: dietaAtualizada, revisao_em: revisaoEm });
 });

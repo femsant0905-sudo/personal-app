@@ -383,7 +383,7 @@ function uk(k){return "u_"+(currentUser?currentUser.id:"anon")+"_"+k;}
 function sget(k,d){try{var v=localStorage.getItem(uk(k));return v?JSON.parse(v):d;}catch(e){return d;}}
 function sset(k,v){try{localStorage.setItem(uk(k),JSON.stringify(v));}catch(e){}}
 
-var pesos,dietaLog,treinos,pressoes,diario,cargaHist,referencias,whoopData,coachMsgs,trocaTreino,bodyFat,comentHist,trocaMeta;
+var pesos,dietaLog,treinos,pressoes,diario,cargaHist,referencias,whoopData,coachMsgs,trocaTreino,bodyFat,comentHist;
 function loadUserData(){
   pesos       = sget("ff_pesos",       []);
   dietaLog    = sget("ff_dieta",       {});
@@ -394,8 +394,7 @@ function loadUserData(){
   referencias = sget("ff_referencias", {itens:[],nota:""}); // dados médicos de referência por usuário
   whoopData   = sget("ff_whoop",       []); // [{data, rhr, hrv, recovery}] importado do Whoop
   coachMsgs   = sget("ff_coach",       []); // histórico do chat com o coach [{role,content}]
-  trocaTreino = sget("ff_troca",       ""); // data ISO do início do plano atual (conta treinos desde então)
-  trocaMeta   = sget("ff_trocameta",    12); // nº de treinos até sugerir trocar de plano
+  trocaTreino = sget("ff_troca",       ""); // data ISO agendada pra revisar/progredir o plano (Coach ou manual)
   bodyFat     = sget("ff_bodyfat",     []); // [{data, bf}] gordura corporal %
   comentHist  = sget("ff_coment",      {}); // {exNome: última nota} pra ver na próxima vez
 }
@@ -405,13 +404,17 @@ function save(){
   sset("ff_pesos",pesos); sset("ff_dieta",dietaLog);
   sset("ff_treinos",treinos); sset("ff_pressoes",pressoes);
   sset("ff_diario",diario); sset("ff_cargas",cargaHist);
-  sset("ff_referencias",referencias); sset("ff_whoop",whoopData); sset("ff_coach",coachMsgs); sset("ff_troca",trocaTreino); sset("ff_bodyfat",bodyFat); sset("ff_coment",comentHist); sset("ff_trocameta",trocaMeta);
+  sset("ff_referencias",referencias); sset("ff_whoop",whoopData); sset("ff_coach",coachMsgs); sset("ff_troca",trocaTreino); sset("ff_bodyfat",bodyFat); sset("ff_coment",comentHist);
   // 2) espelha pro Supabase em segundo plano
   pushCloud("ff_pesos",pesos); pushCloud("ff_dieta",dietaLog);
   pushCloud("ff_treinos",treinos); pushCloud("ff_pressoes",pressoes);
   pushCloud("ff_diario",diario); pushCloud("ff_cargas",cargaHist);
-  pushCloud("ff_referencias",referencias); pushCloud("ff_whoop",whoopData); pushCloud("ff_coach",coachMsgs); pushCloud("ff_troca",trocaTreino); pushCloud("ff_bodyfat",bodyFat); pushCloud("ff_coment",comentHist); pushCloud("ff_trocameta",trocaMeta);
+  pushCloud("ff_referencias",referencias); pushCloud("ff_whoop",whoopData); pushCloud("ff_coach",coachMsgs); pushCloud("ff_troca",trocaTreino); pushCloud("ff_bodyfat",bodyFat); pushCloud("ff_coment",comentHist);
 }
+
+// agenda (ou limpa) a data de revisar/progredir o plano
+function agendarRevisao(d){trocaTreino=d||"";save();renderTreino();}
+function agendarDaqui(dias){var t=new Date();t.setDate(t.getDate()+dias);trocaTreino=t.toISOString().slice(0,10);save();renderTreino();}
 
 // envia um bloco pro Supabase (não bloqueia a tela; se falhar, fica só no aparelho)
 function pushCloud(chave,valor){
@@ -528,8 +531,7 @@ function renderHome(){
   h+='<div style="font-size:12px;color:#7a9a7a;font-weight:600;letter-spacing:.1em;text-transform:uppercase;margin-bottom:6px">'+diaStr+'</div>';
   h+='<div style="font-size:28px;font-weight:900;letter-spacing:-.03em;line-height:1.1">'+saudacao()+',<br><span style="color:#f97316">'+primeiroNome()+'.</span></div></div>';
   h+='<div class="card" style="border-left:3px solid #60a5fa;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;cursor:pointer" onclick="openCoach()"><div>'+tag("Coach","#60a5fa")+'<div style="font-size:16px;font-weight:800;margin-top:6px">Falar com o Coach</div><div style="font-size:12px;color:#7a9a7a;margin-top:2px">Conselhos sobre treino e dieta</div></div><div style="font-size:24px;color:#60a5fa">💬</div></div>';
-  var _tdesde=trocaTreino?Object.keys(treinos).filter(function(k){return k>=trocaTreino;}).length:0;
-  if(trocaTreino&&_tdesde>=trocaMeta)h+='<div class="alert" style="cursor:pointer" onclick="openCoach()"><div class="alert-dot"></div>Você já fez '+_tdesde+' treinos neste plano — hora de progredir/trocar. Fale com o Coach ›</div>';
+  if(trocaTreino&&hoje()>=trocaTreino)h+='<div class="alert" style="cursor:pointer" onclick="openCoach()"><div class="alert-dot"></div>Hora de revisar/progredir seu plano — fale com o Coach ›</div>';
 
   if(new Date().getDay()===1){
     var d2=new Date();d2.setDate(d2.getDate()-1);var semFim=d2.toISOString().split('T')[0];
@@ -708,13 +710,21 @@ function renderTreinoList(){
     document.getElementById("pg-treino").innerHTML=h;return;
   }
 
-  var tDesde=trocaTreino?Object.keys(treinos).filter(function(k){return k>=trocaTreino;}).length:Object.keys(treinos).length;
-  var prontoTroca=tDesde>=trocaMeta;
-  h+='<div class="card" style="margin-bottom:14px">'+tag(prontoTroca?"Hora de trocar de treino":"Progresso do bloco",prontoTroca?"#4ade80":"#a78bfa");
-  h+='<div style="display:flex;justify-content:space-between;align-items:baseline;margin-top:8px;margin-bottom:8px"><div style="font-size:24px;font-weight:900">'+tDesde+'<span style="font-size:13px;color:#7a9a7a"> / '+trocaMeta+' treinos</span></div>';
-  h+='<div style="font-size:12px;color:'+(prontoTroca?"#4ade80":"#7a9a7a")+';font-weight:700">'+(prontoTroca?"pronto pra progredir":("faltam "+(trocaMeta-tDesde)))+'</div></div>';
-  h+=bar(tDesde,trocaMeta,6,"#a78bfa","#4ade80");
-  if(prontoTroca)h+='<div style="font-size:11px;color:#4ade80;margin-top:8px;cursor:pointer" onclick="openCoach()">Fale com o Coach pra progredir o treino ›</div>';
+  var rev=trocaTreino,revVenc=rev&&hoje()>=rev;
+  h+='<div class="card" style="margin-bottom:14px">'+tag(revVenc?"Hora de revisar o plano":"Próxima revisão do plano",revVenc?"#4ade80":"#a78bfa");
+  if(rev){
+    var dleft=Math.round((new Date(rev+"T00:00:00")-new Date(hoje()+"T00:00:00"))/86400000);
+    var quando=dleft>0?("em "+dleft+" dia"+(dleft>1?"s":"")):(dleft===0?"é hoje":("atrasada "+(-dleft)+" dia"+(-dleft>1?"s":"")));
+    h+='<div style="margin-top:8px;font-size:18px;font-weight:800">'+rev.slice(8,10)+'/'+rev.slice(5,7)+'/'+rev.slice(0,4)+' <span style="font-size:12px;color:#7a9a7a;font-weight:600">— '+quando+'</span></div>';
+  } else {
+    h+='<div style="margin-top:8px;font-size:13px;color:#7a9a7a;line-height:1.5">Sem revisão agendada. O Coach marca quando recomendar progredir — ou agende você mesmo abaixo.</div>';
+  }
+  h+='<div style="margin-top:10px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">';
+  h+='<input type="date" value="'+(rev||"")+'" onchange="agendarRevisao(this.value)" style="background:#0f1a0f;border:1px solid #1f2e1f;color:#e8f0e8;border-radius:8px;padding:6px 8px;font-size:13px">';
+  h+='<button onclick="agendarDaqui(28)" style="font-size:12px;color:#a78bfa;font-weight:700;background:none;border:1px solid #2e2440;border-radius:8px;padding:6px 10px;cursor:pointer">+4 semanas</button>';
+  if(rev)h+='<button onclick="agendarRevisao(\'\')" style="font-size:12px;color:#7a9a7a;font-weight:700;background:none;border:1px solid #1f2e1f;border-radius:8px;padding:6px 10px;cursor:pointer">Limpar</button>';
+  h+='</div>';
+  if(revVenc)h+='<div style="font-size:11px;color:#4ade80;margin-top:8px;cursor:pointer" onclick="openCoach()">Fale com o Coach pra revisar/progredir ›</div>';
   h+='</div>';
 
   diasComEx.forEach(function(t,idx){
@@ -1558,7 +1568,7 @@ async function salvarPlano(){
   adminMsg="Salvando...";renderAdmin();
   var r=await sb.from("planos_treino").upsert({user_id:adminAlvo.id,plano:planoEdit,criado_por:currentUser.id,updated_at:new Date().toISOString()});
   if(r.error){adminMsg="Erro ao salvar: "+r.error.message;renderAdmin();return;}
-  if(adminAlvo.id===currentUser.id){TREINOS=JSON.parse(JSON.stringify(planoEdit));trocaTreino=hoje();save();} // aplica já + marca o início do plano (conta treinos até trocar)
+  if(adminAlvo.id===currentUser.id){TREINOS=JSON.parse(JSON.stringify(planoEdit));save();} // aplica o plano (a revisão é agendada pelo Coach ou manualmente na aba Treino)
   adminMsg="Treino de "+adminAlvo.nome+" salvo ✓";renderAdmin();
 }
 
@@ -1805,6 +1815,7 @@ async function enviarCoach(){
       coachMsgs.push({role:"assistant",content:(r.data&&r.data.resposta)||"(sem resposta)"});
       if(r.data&&r.data.treino_atualizado){try{await pullPlano();}catch(_e){}} // recarrega o treino novo
       if(r.data&&r.data.dieta_atualizada){try{await pullDieta();}catch(_e){}} // recarrega a dieta nova
+      if(r.data&&r.data.revisao_em){trocaTreino=r.data.revisao_em;save();} // o coach agendou a revisão do plano
     }
     save();renderCoach();
   }catch(e){coachLoading=false;coachMsgs.push({role:"assistant",content:"(falha de conexão)"});save();renderCoach();}
