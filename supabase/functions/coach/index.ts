@@ -22,7 +22,7 @@ function json(body: unknown, status = 200): Response {
 function diasAtras(n: number): string { const d = new Date(); d.setDate(d.getDate() - n); return d.toISOString().slice(0, 10); }
 
 // deno-lint-ignore no-explicit-any
-function montarContexto(prof: any, ud: any, ptreino: any): string {
+function montarContexto(prof: any, ud: any, ptreino: any, pdieta: any): string {
   const s = (prof && prof.saude) || {};
   const pesos = Array.isArray(ud.ff_pesos) ? ud.ff_pesos : [];
   const pressoes = ud.ff_pressoes || {};
@@ -73,8 +73,20 @@ function montarContexto(prof: any, ud: any, ptreino: any): string {
   const treinosSemana = Object.keys(treinos).filter((k) => k >= ini7);
   L.push(`Treinos feitos (últimos 7 dias): ${treinosSemana.length}`);
   if (ptreino?.plano && Array.isArray(ptreino.plano)) {
-    const nomes = ptreino.plano.filter((d: any) => d.ex && d.ex.length).map((d: any) => d.nome).join("; ");
-    if (nomes) L.push(`Plano de treino atual: ${nomes}`);
+    const dias = ptreino.plano.filter((d: any) => d.ex && d.ex.length).map((d: any) => {
+      const exs = d.ex.map((e: any) => `${e.nome} ${e.s}x${e.r}`).join(", ");
+      return `  - ${d.nome}${d.sub ? " [" + d.sub + "]" : ""}: ${exs}`;
+    }).join("\n");
+    if (dias) L.push(`PLANO DE TREINO ATUAL (cada dia e seus exercícios — use SEMPRE como base ao editar):\n${dias}`);
+  } else {
+    L.push(`Plano de treino atual: (nenhum cadastrado ainda)`);
+  }
+  if (pdieta?.plano && Array.isArray(pdieta.plano)) {
+    const refs2 = pdieta.plano.map((m: any) => {
+      const op = (m.opcoes && m.opcoes[0]) || {};
+      return `  - ${m.nome}${m.hora ? " (" + m.hora + ")" : ""}: ${(op.itens || []).join(", ")} [${op.kcal || "?"}kcal P${op.prot || "?"} C${op.carb || "?"} G${op.gord || "?"}]`;
+    }).join("\n");
+    if (refs2) L.push(`PLANO DE DIETA ATUAL (refeições — use SEMPRE como base ao editar):\n${refs2}`);
   }
   const exNomes = Object.keys(cargas).slice(0, 14);
   if (exNomes.length) {
@@ -227,8 +239,9 @@ Deno.serve(async (req: Request) => {
   // deno-lint-ignore no-explicit-any
   const ud: any = {}; udRows.forEach((r: any) => { ud[r.chave] = r.valor; });
   const ptreino = (await supabase.from("planos_treino").select("plano").eq("user_id", uid).maybeSingle()).data;
+  const pdieta = (await supabase.from("planos_dieta").select("plano").eq("user_id", uid).maybeSingle()).data;
 
-  const contexto = montarContexto(prof, ud, ptreino);
+  const contexto = montarContexto(prof, ud, ptreino, pdieta);
 
   // limite diário por usuário (admin ilimitado) — freio de custo
   const LIMITE = 15;
@@ -251,6 +264,7 @@ Deno.serve(async (req: Request) => {
       "- Se faltar dado pra responder bem, peça ao usuário ou sugira registrar no app.\n" +
       "- Foque no que ajuda o objetivo dele.\n" +
       "- Você PODE atualizar o TREINO (ferramenta atualizar_treino) e a DIETA (ferramenta atualizar_dieta) do usuário no app — use quando ele pedir algo novo/ajuste ou quando combinarem na conversa. Antes de chamar, diga em 1 frase o que vai montar; depois, avise que salvou e que ele vê na aba Treino/Dieta e pode pedir ajustes. NUNCA altere sem o usuário querer.\n" +
+      "- CRÍTICO: as ferramentas atualizar_treino e atualizar_dieta SUBSTITUEM o plano inteiro. SEMPRE parta do PLANO ATUAL mostrado nos dados e reenvie o plano COMPLETO já com a mudança aplicada — TODOS os dias com TODOS os exercícios (ou TODAS as refeições). Nunca envie só o exercício/refeição novo, senão o resto do plano é APAGADO. Se por algum motivo o plano atual não estiver nos dados, peça ao usuário antes de salvar.\n" +
       "- Ao avaliar se deve progredir o treino, ANALISE A PROGRESSÃO DE CARGA dele (subindo / mantendo / caindo) e a recuperação (Whoop/HRV): só recomende subir carga ou volume se a força está mantida/subindo e a recuperação está ok. Se a força cai de forma consistente, priorize recuperação, proteína e sono em vez de mais treino. Cite os números dele na análise.\n" +
       "- Quando recomendar revisar o treino num prazo (ex: 3-4 semanas), use a ferramenta agendar_revisao pra marcar essa data no app — assim o app lembra ele sozinho. Diga ao usuário a data/prazo que agendou.\n\n" +
       "DADOS DO USUÁRIO (privados, só dele):\n" + contexto,
