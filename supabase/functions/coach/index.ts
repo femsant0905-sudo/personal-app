@@ -31,6 +31,8 @@ function montarContexto(prof: any, ud: any, ptreino: any): string {
   const whoop = Array.isArray(ud.ff_whoop) ? ud.ff_whoop : [];
   const refs = ud.ff_referencias || { itens: [] };
   const treinos = ud.ff_treinos || {};
+  const bodyFat = Array.isArray(ud.ff_bodyfat) ? ud.ff_bodyfat : [];
+  const un = s.unidade || "kg";
   const L: string[] = [];
   L.push(`Nome: ${prof?.nome || "-"}`);
   if (s.sexo) L.push(`Sexo: ${s.sexo}`);
@@ -58,6 +60,12 @@ function montarContexto(prof: any, ud: any, ptreino: any): string {
     const uhrv = whoop.slice(-7).filter((x: any) => typeof x.hrv === "number");
     if (uhrv.length > 1) { const med = Math.round(uhrv.reduce((a: number, b: any) => a + b.hrv, 0) / uhrv.length); L.push(`HRV média (últimos ${uhrv.length} dias): ${med} ms`); }
   }
+  if (bodyFat.length) {
+    const b = bodyFat[bodyFat.length - 1];
+    let bfLine = `Gordura corporal: ${b.bf}% (em ${b.data})`;
+    if (bodyFat.length > 1) { const dd = Math.round((b.bf - bodyFat[0].bf) * 10) / 10; bfLine += `, ${dd <= 0 ? "" : "+"}${dd}% desde ${bodyFat[0].data}`; }
+    L.push(bfLine);
+  }
   const ini7 = diasAtras(7);
   const diasDieta = Object.keys(dietaLog).filter((k) => k >= ini7);
   let marc = 0; diasDieta.forEach((k) => { const dd = dietaLog[k]; ["whey", "cafe", "almoco", "lanche", "jantar"].forEach((id) => { if (dd[id]) marc++; }); });
@@ -68,14 +76,18 @@ function montarContexto(prof: any, ud: any, ptreino: any): string {
     const nomes = ptreino.plano.filter((d: any) => d.ex && d.ex.length).map((d: any) => d.nome).join("; ");
     if (nomes) L.push(`Plano de treino atual: ${nomes}`);
   }
-  const exNomes = Object.keys(cargas).slice(0, 8);
+  const exNomes = Object.keys(cargas).slice(0, 14);
   if (exNomes.length) {
-    const cg = exNomes.map((nome) => {
+    const topKg = (sess: any) => (sess && sess.series && sess.series.length ? Math.max(...sess.series.map((x: any) => parseFloat(x.kg) || 0)) : 0);
+    const prog = exNomes.map((nome) => {
       const h = cargas[nome]; if (!h || !h.length) return null;
-      const last = h[h.length - 1]; const kg = last.series && last.series.length ? last.series[last.series.length - 1].kg : null;
-      return kg ? `${nome}: ${kg}kg` : null;
+      const ini = topKg(h[0]); const fim = topKg(h[h.length - 1]);
+      if (!fim) return null;
+      if (h.length < 2) return `${nome}: ${fim}${un} (1 sessão)`;
+      const dif = Math.round((fim - ini) * 10) / 10;
+      return `${nome}: ${fim}${un} (${h.length} sessões, ${dif > 0 ? "+" + dif : dif} vs início)`;
     }).filter(Boolean).join("; ");
-    if (cg) L.push(`Cargas recentes — ${cg}`);
+    if (prog) L.push(`Progressão de carga (maior carga por exercício) — ${prog}`);
   }
   if (refs.itens && refs.itens.length) { const ex = refs.itens.map((i: any) => `${i.label}: ${i.valor}`).join("; "); L.push(`Exames de referência: ${ex}`); }
   return L.join("\n");
@@ -225,7 +237,8 @@ Deno.serve(async (req: Request) => {
       "- Você NÃO é médico. Para dor no peito, sintomas preocupantes, alterações de pressão/frequência cardíaca ou decisões sobre medicação, oriente procurar o médico/cardiologista — não dê veredito clínico.\n" +
       "- Se faltar dado pra responder bem, peça ao usuário ou sugira registrar no app.\n" +
       "- Foque no que ajuda o objetivo dele.\n" +
-      "- Você PODE atualizar o TREINO (ferramenta atualizar_treino) e a DIETA (ferramenta atualizar_dieta) do usuário no app — use quando ele pedir algo novo/ajuste ou quando combinarem na conversa. Antes de chamar, diga em 1 frase o que vai montar; depois, avise que salvou e que ele vê na aba Treino/Dieta e pode pedir ajustes. NUNCA altere sem o usuário querer.\n\n" +
+      "- Você PODE atualizar o TREINO (ferramenta atualizar_treino) e a DIETA (ferramenta atualizar_dieta) do usuário no app — use quando ele pedir algo novo/ajuste ou quando combinarem na conversa. Antes de chamar, diga em 1 frase o que vai montar; depois, avise que salvou e que ele vê na aba Treino/Dieta e pode pedir ajustes. NUNCA altere sem o usuário querer.\n" +
+      "- Ao avaliar se deve progredir o treino, ANALISE A PROGRESSÃO DE CARGA dele (subindo / mantendo / caindo) e a recuperação (Whoop/HRV): só recomende subir carga ou volume se a força está mantida/subindo e a recuperação está ok. Se a força cai de forma consistente, priorize recuperação, proteína e sono em vez de mais treino. Cite os números dele na análise.\n\n" +
       "DADOS DO USUÁRIO (privados, só dele):\n" + contexto,
     cache_control: { type: "ephemeral" },
   }];
