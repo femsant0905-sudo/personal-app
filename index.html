@@ -1388,14 +1388,14 @@ function renderResumo(){
 
   h+='<div class="card" style="margin-bottom:10px">'+tag("Destaques","#f97316");
   h+='<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:14px">';
-  h+=statBox("Perdido",(perdido>=0?"":"+")+f1(Math.abs(perdido)),un,perdido>=0?"#4ade80":"#f87171");
+  h+=statBox("Perdido",(perdido>=0?"":"+")+f1(Math.abs(perdido)),"kg",perdido>=0?"#4ade80":"#f87171");
   h+=statBox("Da meta",pctMeta,"%","#f97316");
-  h+=statBox("Faltam",f1(faltam),un,"#fbbf24");
+  h+=statBox("Faltam",f1(faltam),"kg","#fbbf24");
   h+=statBox("IMC",f1(imcV),"",imcCat.cor);
-  h+=statBox("Menor peso",f1(menorPeso),un,"#4ade80");
+  h+=statBox("Menor peso",f1(menorPeso),"kg","#4ade80");
   h+=statBox("Treinos",totTreinos,"","#a78bfa");
   h+='</div>';
-  h+='<div style="font-size:11px;color:#3d5a3d;margin-top:12px;line-height:1.5">Peso inicial '+f1(pesoIni)+' '+un+' → meta '+f1(pesoMeta)+' '+un+(totKcal>0?" · 🔥 "+nf(totKcal)+" kcal nos treinos":"")+'</div>';
+  h+='<div style="font-size:11px;color:#3d5a3d;margin-top:12px;line-height:1.5">Peso inicial '+f1(pesoIni)+' kg → meta '+f1(pesoMeta)+' kg'+(totKcal>0?" · 🔥 "+nf(totKcal)+" kcal nos treinos":"")+'</div>';
   h+='</div>';
 
   // ── Peso (histórico completo) ──
@@ -1406,8 +1406,8 @@ function renderResumo(){
     var difW=pesoAtual-pesoIni;
     h+='<div class="card" style="margin-bottom:10px">';
     h+='<div style="display:flex;justify-content:space-between;align-items:center">'+tag("Peso","#f97316")+'<span style="font-size:11px;color:#7a9a7a">'+pesos.length+' registros</span></div>';
-    h+='<div style="font-size:32px;font-weight:900;letter-spacing:-.03em;margin-top:12px;line-height:1">'+f1(pesoAtual)+'<span style="font-size:13px;color:#7a9a7a;margin-left:3px">'+un+'</span></div>';
-    h+='<div style="font-size:12px;color:'+(difW<=0?"#4ade80":"#f87171")+';font-weight:700;margin-top:4px">'+(difW<=0?"▼ ":"▲ ")+f1(Math.abs(difW))+' '+un+' no total · média 7d '+f1(avg7)+'</div>';
+    h+='<div style="font-size:32px;font-weight:900;letter-spacing:-.03em;margin-top:12px;line-height:1">'+f1(pesoAtual)+'<span style="font-size:13px;color:#7a9a7a;margin-left:3px">kg</span></div>';
+    h+='<div style="font-size:12px;color:'+(difW<=0?"#4ade80":"#f87171")+';font-weight:700;margin-top:4px">'+(difW<=0?"▼ ":"▲ ")+f1(Math.abs(difW))+' kg no total · média 7d '+f1(avg7)+'</div>';
     h+='<div style="margin-top:16px">'+lineSVG(wv,"#f97316",84)+'</div>';
     h+='<div style="display:flex;justify-content:space-between;font-size:10px;color:#3d5a3d;margin-top:6px"><span>'+fmtD(pesos[0].data)+'</span><span>máx '+f1(mxW)+' · mín '+f1(mnW)+'</span><span>meta '+f1(pesoMeta)+'</span></div>';
     h+='</div>';
