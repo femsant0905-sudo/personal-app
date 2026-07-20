@@ -1372,28 +1372,30 @@ function renderResumo(){
   }
 
   // ── Destaques ──
-  var pesoIni=pesos.length?pesos[0].peso:(currentUser.peso_inicial||0);
+  var pesoIni=currentUser.peso_inicial||(pesos.length?pesos[0].peso:0); // peso inicial do perfil (bate com o Início)
   var pesoAtual=pesos.length?pesos[pesos.length-1].peso:pesoIni;
   var pesoMeta=currentUser.peso_meta||95;
+  var altura=currentUser.altura||1.90;
   var perdido=pesoIni-pesoAtual;
   var metaTot=Math.max(0.1,pesoIni-pesoMeta);
   var pctMeta=Math.max(0,Math.min(100,Math.round((perdido/metaTot)*100)));
+  var faltam=Math.max(0,pesoAtual-pesoMeta);
+  var imcV=pesoAtual/(altura*altura);
+  var imcCat=imcCategoria(imcV);
+  var menorPeso=pesos.length?Math.min.apply(null,pesos.map(function(p){return p.peso;})):pesoAtual;
   var totTreinos=Object.keys(treinos).length;
-  var totMin=Object.values(treinos).reduce(function(s,t){return s+(t.duracao?t.duracao/60:0);},0);
   var totKcal=Object.values(treinos).reduce(function(s,t){return s+(parseInt(t.gasto)||0);},0);
-  var volTotal=0,totReps=0,totSeries=0;
-  Object.keys(cargaHist).forEach(function(ex){(cargaHist[ex]||[]).forEach(function(sess){(sess.series||[]).forEach(function(x){var kg=parseFloat(x.kg)||0,r=parseInt(x.reps)||0;volTotal+=kg*r;totReps+=r;totSeries++;});});});
 
   h+='<div class="card" style="margin-bottom:10px">'+tag("Destaques","#f97316");
   h+='<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:14px">';
   h+=statBox("Perdido",(perdido>=0?"":"+")+f1(Math.abs(perdido)),un,perdido>=0?"#4ade80":"#f87171");
   h+=statBox("Da meta",pctMeta,"%","#f97316");
-  h+=statBox("Treinos",totTreinos,"","#fbbf24");
-  h+=statBox("Volume",nf(volTotal/1000),"t","#60a5fa");
-  h+=statBox("Tempo",f1(totMin/60),"h","#a78bfa");
-  h+=statBox("Séries",totSeries,"","#4ade80");
+  h+=statBox("Faltam",f1(faltam),un,"#fbbf24");
+  h+=statBox("IMC",f1(imcV),"",imcCat.cor);
+  h+=statBox("Menor peso",f1(menorPeso),un,"#4ade80");
+  h+=statBox("Treinos",totTreinos,"","#a78bfa");
   h+='</div>';
-  if(totKcal>0||totReps>0)h+='<div style="font-size:11px;color:#3d5a3d;margin-top:12px;line-height:1.5">'+(totKcal>0?"🔥 "+nf(totKcal)+" kcal queimadas · ":"")+nf(totReps)+' repetições no total</div>';
+  h+='<div style="font-size:11px;color:#3d5a3d;margin-top:12px;line-height:1.5">Peso inicial '+f1(pesoIni)+' '+un+' → meta '+f1(pesoMeta)+' '+un+(totKcal>0?" · 🔥 "+nf(totKcal)+" kcal nos treinos":"")+'</div>';
   h+='</div>';
 
   // ── Peso (histórico completo) ──
