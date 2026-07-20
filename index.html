@@ -43,6 +43,7 @@ textarea{background:#0a0f0a;border:1px solid #243324;border-radius:12px;padding:
 <input type="file" id="pdf-input" accept="application/pdf" style="display:none" onchange="importarPDF(event)"/>
 <input type="file" id="whoop-input" accept=".csv" style="display:none" onchange="importWhoop(event)"/>
 <div id="pg-home"   class="page active"></div>
+<div id="pg-resumo" class="page"></div>
 <div id="pg-diario" class="page"></div>
 <div id="pg-treino" class="page"></div>
 <div id="pg-along"  class="page"></div>
@@ -55,6 +56,7 @@ textarea{background:#0a0f0a;border:1px solid #243324;border-radius:12px;padding:
 <div class="nav" style="display:none">
   <div class="nav-inner">
     <button class="nav-btn active" onclick="goTo('home')">Início</button>
+    <button class="nav-btn" onclick="goTo('resumo')">Resumo</button>
     <button class="nav-btn" onclick="goTo('diario')">Diário</button>
     <button class="nav-btn" onclick="goTo('treino')">Treino</button>
     <button class="nav-btn" onclick="goTo('along')">Stretch</button>
@@ -484,7 +486,7 @@ function salvarCargaHistorico(exNome, series){
 
 // ── NAVIGATION ───────────────────────────────────────────────────────────────
 var curPage="home";
-var NAV_LABELS={home:"início",diario:"diário",treino:"treino",along:"stretch",dieta:"dieta",corpo:"corpo"};
+var NAV_LABELS={home:"início",resumo:"resumo",diario:"diário",treino:"treino",along:"stretch",dieta:"dieta",corpo:"corpo"};
 
 function goTo(page){
   var _nav=document.querySelector(".nav");if(_nav)_nav.style.display="block";
@@ -495,7 +497,7 @@ function goTo(page){
     if(b.textContent.toLowerCase()===NAV_LABELS[page])b.classList.add("active");
   });
   curPage=page;
-  var fns={home:renderHome,diario:renderDiario,treino:renderTreino,along:renderAlong,dieta:renderDieta,corpo:renderCorpo};
+  var fns={home:renderHome,resumo:renderResumo,diario:renderDiario,treino:renderTreino,along:renderAlong,dieta:renderDieta,corpo:renderCorpo};
   if(fns[page])fns[page]();
   window.scrollTo(0,0);
 }
@@ -1315,6 +1317,189 @@ function renderCorpo(){
   h+='<div style="font-size:13px;color:#7a9a7a;margin-top:8px;margin-bottom:14px;line-height:1.6">Gera resumo completo do progresso. Cole no Claude para análise.</div>';
   h+='<button class="btn-main" id="btn-export" onclick="exportLog()">COPIAR LOG COMPLETO</button></div>';
   document.getElementById("pg-corpo").innerHTML=h;
+}
+
+// ── RESUMO (painel analítico, só leitura) ─────────────────────────────────────
+function semanaSeg(iso){var d=new Date(iso+"T12:00:00");var dow=(d.getDay()+6)%7;d.setDate(d.getDate()-dow);return d.toISOString().slice(0,10);}
+function sysBP(v){var m=String(v||"").match(/(\d+)/);return m?parseInt(m[1],10):null;}
+function nf(n){try{return Math.round(n).toLocaleString("pt-BR");}catch(e){return String(Math.round(n));}}
+function ultimas10Semanas(mapVal){ // mapVal: {segIso:numero} -> [{label,val,top}]
+  var out=[],cur=semanaSeg(hoje());
+  for(var i=9;i>=0;i--){var dt=new Date(cur+"T12:00:00");dt.setDate(dt.getDate()-i*7);var k=dt.toISOString().slice(0,10);out.push({k:k,val:mapVal[k]||0});}
+  return out;
+}
+function lineSVG(vals,cor,h){
+  h=h||72;var n=vals.length;if(n<2)return'';
+  var mn=Math.min.apply(null,vals),mx=Math.max.apply(null,vals),rng=mx-mn||1,W=300,pad=8;
+  var pts=vals.map(function(v,i){return [pad+(i/(n-1))*(W-2*pad),pad+(1-(v-mn)/rng)*(h-2*pad)];});
+  var poly=pts.map(function(p){return p[0].toFixed(1)+","+p[1].toFixed(1);}).join(" ");
+  var area="M "+pts[0][0].toFixed(1)+" "+(h-1)+" L "+pts.map(function(p){return p[0].toFixed(1)+" "+p[1].toFixed(1);}).join(" L ")+" L "+pts[n-1][0].toFixed(1)+" "+(h-1)+" Z";
+  var id="g"+Math.random().toString(36).slice(2,7),lp=pts[n-1];
+  var s='<svg viewBox="0 0 '+W+' '+h+'" preserveAspectRatio="none" style="width:100%;height:'+h+'px;display:block;overflow:visible">';
+  s+='<defs><linearGradient id="'+id+'" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="'+cor+'" stop-opacity=".30"/><stop offset="1" stop-color="'+cor+'" stop-opacity="0"/></linearGradient></defs>';
+  s+='<path d="'+area+'" fill="url(#'+id+')"/>';
+  s+='<polyline points="'+poly+'" fill="none" stroke="'+cor+'" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" vector-effect="non-scaling-stroke"/>';
+  s+='<circle cx="'+lp[0].toFixed(1)+'" cy="'+lp[1].toFixed(1)+'" r="3.5" fill="'+cor+'" vector-effect="non-scaling-stroke"/></svg>';
+  return s;
+}
+function barsResumo(items,cor){
+  if(!items.length)return'';
+  var mx=Math.max.apply(null,items.map(function(x){return x.val;}))||1;
+  var h='<div style="display:flex;align-items:flex-end;gap:4px;height:76px">';
+  items.forEach(function(it,i){
+    var isLast=i===items.length-1,ht=it.val>0?Math.max(4,(it.val/mx)*56):2;
+    h+='<div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%">';
+    if(it.top!=null&&it.top!=="")h+='<div style="font-size:8px;color:'+(isLast?cor:"#7a9a7a")+';font-weight:700;margin-bottom:2px">'+it.top+'</div>';
+    h+='<div style="width:100%;background:'+(isLast?cor:"#243324")+';border-radius:4px 4px 0 0;height:'+ht+'px"></div>';
+    h+='<div style="font-size:7px;color:#3d5a3d;margin-top:3px">'+it.label+'</div></div>';
+  });
+  return h+'</div>';
+}
+function statBox(label,val,unit,cor){
+  return '<div style="background:#0a0f0a;border:1px solid #1e2e1e;border-radius:14px;padding:12px 10px"><div style="font-size:25px;font-weight:900;color:'+cor+';letter-spacing:-.03em;line-height:1">'+val+(unit?'<span style="font-size:12px;color:#7a9a7a;font-weight:700;margin-left:2px">'+unit+'</span>':'')+'</div><div style="font-size:9px;color:#7a9a7a;font-weight:700;letter-spacing:.05em;text-transform:uppercase;margin-top:6px">'+label+'</div></div>';
+}
+
+function renderResumo(){
+  var un=unidadePeso();
+  var h='';
+  h+='<div style="padding-top:28px;padding-bottom:16px"><div style="font-size:12px;color:#7a9a7a;font-weight:600;letter-spacing:.1em;text-transform:uppercase;margin-bottom:6px">Sua evolução</div>';
+  h+='<div style="font-size:28px;font-weight:900;letter-spacing:-.02em">Resumo</div></div>';
+
+  var semDados=!pesos.length&&!Object.keys(treinos).length&&!Object.keys(cargaHist).length&&!Object.keys(dietaLog).length;
+  if(semDados){
+    h+='<div class="card" style="text-align:center;padding:40px 24px"><div style="font-size:40px;margin-bottom:14px">📊</div><div style="font-size:15px;color:#7a9a7a;line-height:1.6">Ainda sem histórico.<br>Registre peso, treinos e refeições — os gráficos aparecem aqui automaticamente.</div></div>';
+    document.getElementById("pg-resumo").innerHTML=h;return;
+  }
+
+  // ── Destaques ──
+  var pesoIni=pesos.length?pesos[0].peso:(currentUser.peso_inicial||0);
+  var pesoAtual=pesos.length?pesos[pesos.length-1].peso:pesoIni;
+  var pesoMeta=currentUser.peso_meta||95;
+  var perdido=pesoIni-pesoAtual;
+  var metaTot=Math.max(0.1,pesoIni-pesoMeta);
+  var pctMeta=Math.max(0,Math.min(100,Math.round((perdido/metaTot)*100)));
+  var totTreinos=Object.keys(treinos).length;
+  var totMin=Object.values(treinos).reduce(function(s,t){return s+(t.duracao?t.duracao/60:0);},0);
+  var totKcal=Object.values(treinos).reduce(function(s,t){return s+(parseInt(t.gasto)||0);},0);
+  var volTotal=0,totReps=0,totSeries=0;
+  Object.keys(cargaHist).forEach(function(ex){(cargaHist[ex]||[]).forEach(function(sess){(sess.series||[]).forEach(function(x){var kg=parseFloat(x.kg)||0,r=parseInt(x.reps)||0;volTotal+=kg*r;totReps+=r;totSeries++;});});});
+
+  h+='<div class="card" style="margin-bottom:10px">'+tag("Destaques","#f97316");
+  h+='<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:14px">';
+  h+=statBox("Perdido",(perdido>=0?"":"+")+f1(Math.abs(perdido)),un,perdido>=0?"#4ade80":"#f87171");
+  h+=statBox("Da meta",pctMeta,"%","#f97316");
+  h+=statBox("Treinos",totTreinos,"","#fbbf24");
+  h+=statBox("Volume",nf(volTotal/1000),"t","#60a5fa");
+  h+=statBox("Tempo",f1(totMin/60),"h","#a78bfa");
+  h+=statBox("Séries",totSeries,"","#4ade80");
+  h+='</div>';
+  if(totKcal>0||totReps>0)h+='<div style="font-size:11px;color:#3d5a3d;margin-top:12px;line-height:1.5">'+(totKcal>0?"🔥 "+nf(totKcal)+" kcal queimadas · ":"")+nf(totReps)+' repetições no total</div>';
+  h+='</div>';
+
+  // ── Peso (histórico completo) ──
+  if(pesos.length>=2){
+    var wv=pesos.map(function(p){return p.peso;});
+    var mnW=Math.min.apply(null,wv),mxW=Math.max.apply(null,wv);
+    var last7=pesos.slice(-7),avg7=last7.reduce(function(s,p){return s+p.peso;},0)/last7.length;
+    var difW=pesoAtual-pesoIni;
+    h+='<div class="card" style="margin-bottom:10px">';
+    h+='<div style="display:flex;justify-content:space-between;align-items:center">'+tag("Peso","#f97316")+'<span style="font-size:11px;color:#7a9a7a">'+pesos.length+' registros</span></div>';
+    h+='<div style="font-size:32px;font-weight:900;letter-spacing:-.03em;margin-top:12px;line-height:1">'+f1(pesoAtual)+'<span style="font-size:13px;color:#7a9a7a;margin-left:3px">'+un+'</span></div>';
+    h+='<div style="font-size:12px;color:'+(difW<=0?"#4ade80":"#f87171")+';font-weight:700;margin-top:4px">'+(difW<=0?"▼ ":"▲ ")+f1(Math.abs(difW))+' '+un+' no total · média 7d '+f1(avg7)+'</div>';
+    h+='<div style="margin-top:16px">'+lineSVG(wv,"#f97316",84)+'</div>';
+    h+='<div style="display:flex;justify-content:space-between;font-size:10px;color:#3d5a3d;margin-top:6px"><span>'+fmtD(pesos[0].data)+'</span><span>máx '+f1(mxW)+' · mín '+f1(mnW)+'</span><span>meta '+f1(pesoMeta)+'</span></div>';
+    h+='</div>';
+  }
+
+  // ── Gordura corporal ──
+  if(bodyFat.length>=2){
+    var bv=bodyFat.map(function(x){return x.bf;});
+    var bfDif=bv[bv.length-1]-bv[0];
+    h+='<div class="card" style="margin-bottom:10px">'+tag("Gordura corporal","#fbbf24");
+    h+='<div style="font-size:30px;font-weight:900;color:#fbbf24;letter-spacing:-.03em;margin-top:10px;line-height:1">'+f1(bv[bv.length-1])+'<span style="font-size:13px;color:#7a9a7a">%</span></div>';
+    h+='<div style="font-size:12px;color:'+(bfDif<=0?"#4ade80":"#f87171")+';font-weight:700;margin-top:4px">'+(bfDif<=0?"▼ ":"▲ ")+Math.abs(f1(bfDif))+'% desde '+fmtD(bodyFat[0].data)+'</div>';
+    h+='<div style="margin-top:14px">'+lineSVG(bv,"#fbbf24",64)+'</div></div>';
+  }
+
+  // ── Frequência de treino (10 semanas) ──
+  if(totTreinos){
+    var freqMap={};Object.keys(treinos).forEach(function(d){var k=semanaSeg(d);freqMap[k]=(freqMap[k]||0)+1;});
+    var fw=ultimas10Semanas(freqMap).map(function(w){return {label:fmtD(w.k).split(" ")[0],val:w.val,top:w.val||""};});
+    var mediaSem=fw.reduce(function(s,w){return s+w.val;},0)/fw.length;
+    h+='<div class="card" style="margin-bottom:10px">';
+    h+='<div style="display:flex;justify-content:space-between;align-items:center">'+tag("Frequência de treino","#fbbf24")+'<span style="font-size:11px;color:#7a9a7a">'+f1(mediaSem)+'/semana</span></div>';
+    h+='<div style="font-size:11px;color:#3d5a3d;margin-top:4px;margin-bottom:14px">Treinos por semana · últimas 10 semanas</div>';
+    h+=barsResumo(fw,"#fbbf24");
+    h+='</div>';
+  }
+
+  // ── Volume por semana ──
+  var volWkMap={};
+  Object.keys(cargaHist).forEach(function(ex){(cargaHist[ex]||[]).forEach(function(sess){var k=semanaSeg(sess.data),v=0;(sess.series||[]).forEach(function(x){v+=(parseFloat(x.kg)||0)*(parseInt(x.reps)||0);});volWkMap[k]=(volWkMap[k]||0)+v;});});
+  if(Object.keys(volWkMap).length){
+    var vw=ultimas10Semanas(volWkMap).map(function(w){return {label:fmtD(w.k).split(" ")[0],val:w.val,top:w.val>0?nf(w.val/1000)+"t":""};});
+    h+='<div class="card" style="margin-bottom:10px">'+tag("Volume por semana","#60a5fa");
+    h+='<div style="font-size:11px;color:#3d5a3d;margin-top:4px;margin-bottom:14px">Carga × reps levantada por semana</div>';
+    h+=barsResumo(vw,"#60a5fa");
+    h+='</div>';
+  }
+
+  // ── Progressão de carga / recordes ──
+  var prog=[];
+  Object.keys(cargaHist).forEach(function(ex){
+    var hs=cargaHist[ex];if(!hs||!hs.length)return;
+    var maxOf=function(sess){return Math.max.apply(null,(sess.series||[]).map(function(x){return parseFloat(x.kg)||0;}));};
+    var ini=maxOf(hs[0]),fim=maxOf(hs[hs.length-1]),pr=Math.max.apply(null,hs.map(maxOf));
+    prog.push({nome:ex,ini:ini,fim:fim,dif:fim-ini,pr:pr,n:hs.length});
+  });
+  if(prog.length){
+    var ranked=prog.slice().sort(function(a,b){return b.dif-a.dif;}).slice(0,6);
+    h+='<div class="card" style="margin-bottom:10px">'+tag("Progressão de carga","#f97316");
+    h+='<div style="font-size:11px;color:#3d5a3d;margin-top:4px;margin-bottom:12px">Maiores ganhos · recorde atual</div>';
+    ranked.forEach(function(p,i,arr){
+      var cor=p.dif>0?"#4ade80":p.dif<0?"#f87171":"#7a9a7a";
+      h+='<div style="display:flex;justify-content:space-between;align-items:center;padding-bottom:10px;margin-bottom:10px;border-bottom:'+(i<arr.length-1?"1px solid #1e2e1e":"none")+'">';
+      h+='<div style="min-width:0;flex:1"><div style="font-size:13px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+p.nome+'</div><div style="font-size:10px;color:#3d5a3d;margin-top:2px">recorde '+p.pr+un+' · '+p.n+' sessões</div></div>';
+      h+='<div style="text-align:right;flex-shrink:0;margin-left:10px"><div style="font-size:15px;font-weight:800;color:'+cor+'">'+(p.dif>0?"+":"")+f1(p.dif)+un+'</div><div style="font-size:10px;color:#7a9a7a">'+f1(p.ini)+'→'+f1(p.fim)+'</div></div></div>';
+    });
+    h+='</div>';
+  }
+
+  // ── Dieta (aderência) ──
+  var dDias=Object.keys(dietaLog);
+  if(dDias.length){
+    var meals=['whey','cafe','almoco','lanche','jantar'];
+    var conta=function(d){var dd=dietaLog[d]||{};return meals.filter(function(id){return dd[id];}).length;};
+    var adMap={};dDias.forEach(function(d){if(conta(d)>=3){var k=semanaSeg(d);adMap[k]=(adMap[k]||0)+1;}});
+    var aw=ultimas10Semanas(adMap).map(function(w){return {label:fmtD(w.k).split(" ")[0],val:w.val,top:w.val||""};});
+    var streak=0,dcur=new Date(hoje()+"T12:00:00");
+    while(conta(dcur.toISOString().slice(0,10))>=3){streak++;dcur.setDate(dcur.getDate()-1);if(streak>400)break;}
+    var diasBons=dDias.filter(function(d){return conta(d)>=3;}).length;
+    h+='<div class="card" style="margin-bottom:10px">';
+    h+='<div style="display:flex;justify-content:space-between;align-items:center">'+tag("Dieta","#4ade80")+'<span style="font-size:11px;color:#7a9a7a">🔥 '+streak+' dias seguidos</span></div>';
+    h+='<div style="font-size:11px;color:#3d5a3d;margin-top:4px;margin-bottom:14px">Dias com ≥3 refeições · '+diasBons+' no total · últimas 10 semanas</div>';
+    h+=barsResumo(aw,"#4ade80");
+    h+='</div>';
+  }
+
+  // ── Pressão (sistólica) ──
+  var prAll=Object.values(pressoes).sort(function(a,b){return (a.data||"").localeCompare(b.data||"");});
+  var sysArr=prAll.map(function(p){return sysBP(p.manha||p.noite);}).filter(function(v){return v!=null;});
+  if(sysArr.length>=2){
+    var avgSys=sysArr.reduce(function(s,v){return s+v;},0)/sysArr.length;
+    h+='<div class="card" style="margin-bottom:10px">'+tag("Pressão (sistólica)","#fbbf24");
+    h+='<div style="font-size:11px;color:#3d5a3d;margin-top:4px;margin-bottom:12px">Média '+Math.round(avgSys)+' · meta abaixo de 120</div>';
+    h+=lineSVG(sysArr,"#fbbf24",64)+'</div>';
+  }
+
+  // ── Whoop ──
+  if(whoopData&&whoopData.length>=2){
+    h+='<div class="card" style="margin-bottom:10px">'+tag("FC repouso & HRV","#a78bfa");
+    h+=whoopChart("FC repouso",whoopData.slice(-21),"rhr","#f87171");
+    h+=whoopChart("HRV",whoopData.slice(-21),"hrv","#4ade80")+'</div>';
+  }
+
+  document.getElementById("pg-resumo").innerHTML=h;
 }
 
 function salvarPesoCorpo(){
