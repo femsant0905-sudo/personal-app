@@ -56,7 +56,6 @@ textarea{background:#0a0f0a;border:1px solid #243324;border-radius:12px;padding:
 <div class="nav" style="display:none">
   <div class="nav-inner">
     <button class="nav-btn active" onclick="goTo('home')">Início</button>
-    <button class="nav-btn" onclick="goTo('resumo')">Resumo</button>
     <button class="nav-btn" onclick="goTo('diario')">Diário</button>
     <button class="nav-btn" onclick="goTo('treino')">Treino</button>
     <button class="nav-btn" onclick="goTo('along')">Stretch</button>
@@ -533,6 +532,7 @@ function renderHome(){
   h+='<div style="font-size:12px;color:#7a9a7a;font-weight:600;letter-spacing:.1em;text-transform:uppercase;margin-bottom:6px">'+diaStr+'</div>';
   h+='<div style="font-size:28px;font-weight:900;letter-spacing:-.03em;line-height:1.1">'+saudacao()+',<br><span style="color:#f97316">'+primeiroNome()+'.</span></div></div>';
   h+='<div class="card" style="border-left:3px solid #60a5fa;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;cursor:pointer" onclick="openCoach()"><div>'+tag("Coach","#60a5fa")+'<div style="font-size:16px;font-weight:800;margin-top:6px">Falar com o Coach</div><div style="font-size:12px;color:#7a9a7a;margin-top:2px">Conselhos sobre treino e dieta</div></div><div style="font-size:24px;color:#60a5fa">💬</div></div>';
+  h+='<div class="card" style="border-left:3px solid #f97316;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;cursor:pointer" onclick="goTo(\'resumo\')"><div>'+tag("Resumo","#f97316")+'<div style="font-size:16px;font-weight:800;margin-top:6px">Ver seu Resumo</div><div style="font-size:12px;color:#7a9a7a;margin-top:2px">Gráficos, cargas, peso e evolução</div></div><div style="font-size:24px;color:#f97316">📊</div></div>';
   if(trocaTreino&&hoje()>=trocaTreino)h+='<div class="alert" style="cursor:pointer" onclick="openCoach()"><div class="alert-dot"></div>Hora de revisar/progredir seu plano — fale com o Coach ›</div>';
 
   if(new Date().getDay()===1){
