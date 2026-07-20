@@ -1359,6 +1359,8 @@ function statBox(label,val,unit,cor){
   return '<div style="background:#0a0f0a;border:1px solid #1e2e1e;border-radius:14px;padding:12px 10px"><div style="font-size:25px;font-weight:900;color:'+cor+';letter-spacing:-.03em;line-height:1">'+val+(unit?'<span style="font-size:12px;color:#7a9a7a;font-weight:700;margin-left:2px">'+unit+'</span>':'')+'</div><div style="font-size:9px;color:#7a9a7a;font-weight:700;letter-spacing:.05em;text-transform:uppercase;margin-top:6px">'+label+'</div></div>';
 }
 
+var resumoExSel=""; // exercício selecionado no dropdown de progressão de carga
+function setResumoEx(nome){resumoExSel=nome;renderResumo();}
 function renderResumo(){
   var un=unidadePeso();
   var h='';
@@ -1455,16 +1457,41 @@ function renderResumo(){
     prog.push({nome:ex,ini:ini,fim:fim,dif:fim-ini,pr:pr,n:hs.length});
   });
   if(prog.length){
-    var ranked=prog.slice().sort(function(a,b){return b.dif-a.dif;}).slice(0,6);
+    var exNomes=prog.map(function(p){return p.nome;}).sort();
+    if(!resumoExSel||exNomes.indexOf(resumoExSel)<0)resumoExSel=prog.slice().sort(function(a,b){return b.n-a.n;})[0].nome; // padrão: o mais registrado
     h+='<div class="card" style="margin-bottom:10px">'+tag("Progressão de carga","#f97316");
-    h+='<div style="font-size:11px;color:#3d5a3d;margin-top:4px;margin-bottom:12px">Maiores ganhos · recorde atual</div>';
+
+    // dropdown de exercício
+    h+='<div style="position:relative;margin-top:14px">';
+    h+='<select onchange="setResumoEx(this.value)" style="width:100%;background:#0a0f0a;border:1px solid #243324;border-radius:12px;padding:12px 38px 12px 14px;color:#eef5ee;font-size:14px;font-weight:700;outline:none;-webkit-appearance:none;appearance:none">';
+    exNomes.forEach(function(nm){h+='<option value="'+nm.replace(/"/g,"&quot;")+'"'+(nm===resumoExSel?" selected":"")+'>'+nm+'</option>';});
+    h+='</select><div style="position:absolute;right:14px;top:50%;transform:translateY(-50%);color:#7a9a7a;pointer-events:none;font-size:11px">▼</div></div>';
+
+    // gráfico da carga do exercício selecionado ao longo do tempo
+    var selHs=cargaHist[resumoExSel]||[];
+    var maxKg=function(sess){return Math.max.apply(null,(sess.series||[]).map(function(x){return parseFloat(x.kg)||0;}));};
+    var selVals=selHs.map(maxKg),selInfo=prog.filter(function(p){return p.nome===resumoExSel;})[0];
+    if(selVals.length>=2){
+      var corE=selInfo.dif>0?"#4ade80":selInfo.dif<0?"#f87171":"#f97316";
+      h+='<div style="display:flex;justify-content:space-between;align-items:baseline;margin-top:16px">';
+      h+='<div style="font-size:30px;font-weight:900;letter-spacing:-.03em;line-height:1">'+f1(selInfo.fim)+'<span style="font-size:13px;color:#7a9a7a;margin-left:2px">'+un+'</span></div>';
+      h+='<div style="font-size:12px;font-weight:700;color:'+corE+'">'+(selInfo.dif>0?"▲ +":selInfo.dif<0?"▼ ":"→ ")+Math.abs(f1(selInfo.dif))+un+' · recorde '+selInfo.pr+un+'</div></div>';
+      h+='<div style="margin-top:14px">'+lineSVG(selVals,corE,84)+'</div>';
+      h+='<div style="display:flex;justify-content:space-between;font-size:10px;color:#3d5a3d;margin-top:6px"><span>'+fmtD(selHs[0].data)+'</span><span>'+selHs.length+' sessões</span><span>'+fmtD(selHs[selHs.length-1].data)+'</span></div>';
+    } else {
+      h+='<div style="font-size:13px;color:#7a9a7a;margin-top:16px;line-height:1.6">Só 1 sessão registrada nesse exercício — treine mais vezes pra ver a linha de evolução.</div>';
+    }
+
+    // ranking: maiores ganhos
+    var ranked=prog.slice().sort(function(a,b){return b.dif-a.dif;}).slice(0,6);
+    h+='<div style="border-top:1px solid #1e2e1e;margin-top:18px;padding-top:14px"><div style="font-size:10px;color:#7a9a7a;font-weight:700;letter-spacing:.06em;text-transform:uppercase;margin-bottom:12px">Maiores ganhos</div>';
     ranked.forEach(function(p,i,arr){
       var cor=p.dif>0?"#4ade80":p.dif<0?"#f87171":"#7a9a7a";
       h+='<div style="display:flex;justify-content:space-between;align-items:center;padding-bottom:10px;margin-bottom:10px;border-bottom:'+(i<arr.length-1?"1px solid #1e2e1e":"none")+'">';
       h+='<div style="min-width:0;flex:1"><div style="font-size:13px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+p.nome+'</div><div style="font-size:10px;color:#3d5a3d;margin-top:2px">recorde '+p.pr+un+' · '+p.n+' sessões</div></div>';
       h+='<div style="text-align:right;flex-shrink:0;margin-left:10px"><div style="font-size:15px;font-weight:800;color:'+cor+'">'+(p.dif>0?"+":"")+f1(p.dif)+un+'</div><div style="font-size:10px;color:#7a9a7a">'+f1(p.ini)+'→'+f1(p.fim)+'</div></div></div>';
     });
-    h+='</div>';
+    h+='</div></div>';
   }
 
   // ── Dieta (aderência) ──
