@@ -15,10 +15,6 @@
   body{padding:24px}
   a{color:var(--org)}
 
-  /* barra de instrução — some na impressão */
-  .howto{max-width:820px;margin:0 auto 22px;background:#10243a;border:1px solid #24496e;border-radius:14px;padding:16px 20px;color:#cfe4ff;font-size:14px;line-height:1.6}
-  .howto b{color:#fff}
-
   /* páginas A4 */
   .sheet{max-width:820px;margin:0 auto 20px;background:var(--bg);border:1px solid var(--line);border-radius:22px;padding:48px 54px;page-break-after:always}
   .sheet:last-child{page-break-after:auto}
@@ -80,7 +76,6 @@
   /* ── mobile: empilha em uma coluna ── */
   @media (max-width:720px){
     body{padding:12px}
-    .howto{font-size:13px;padding:13px 15px;line-height:1.55}
     .sheet{padding:30px 22px;border-radius:16px;margin-bottom:12px}
     .sheet[style]{min-height:auto !important}
     h1{font-size:32px}
@@ -101,19 +96,12 @@
   @media print{
     @page{size:A4;margin:12mm}
     html,body{background:#fff;padding:0}
-    .howto{display:none}
     .sheet{border:none;border-radius:0;margin:0;max-width:none;padding:0 0 6mm}
     *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
   }
 </style>
 </head>
 <body>
-
-<div class="howto">
-  📄 <b>Como gerar o PDF:</b> aperte <b>Ctrl/Cmd + P</b> → em “Destino” escolha <b>Salvar como PDF</b>.
-  Importante: em <b>Mais configurações</b>, ligue <b>“Gráficos de plano de fundo”</b> pra manter o visual escuro do app.
-  (Esta faixa azul não aparece no PDF.)
-</div>
 
 <!-- ══════════ CAPA ══════════ -->
 <section class="sheet" style="min-height:960px;display:flex;flex-direction:column;justify-content:center">
