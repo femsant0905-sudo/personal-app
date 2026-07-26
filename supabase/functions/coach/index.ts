@@ -284,7 +284,7 @@ Deno.serve(async (req: Request) => {
       resp = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-api-key": ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01" },
-        body: JSON.stringify({ model: MODEL, max_tokens: 1500, system, tools, messages: convo }),
+        body: JSON.stringify({ model: MODEL, max_tokens: 8000, system, tools, messages: convo }),
       });
     } catch (_e) { return json({ erro: "Falha ao conectar na API do Claude." }, 502); }
     if (!resp.ok) { const detalhe = await resp.text(); return json({ erro: "Erro no coach.", detalhe }, 502); }
