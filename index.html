@@ -686,15 +686,22 @@ var treinoStart=null,treinoElapsed=0,treinoClockIv=null;
 
 function renderTreino(){if(!treinoAtivo){renderTreinoList();return;}renderTreinoExec();}
 
-// sugere o próximo treino: o seguinte (na ordem do plano) ao último que foi feito
+// sugere o próximo treino: o seguinte (na ordem do plano) ao último que foi feito.
+// casa por id e, se o id não existir mais (plano reeditado → ids novos), casa pelo NOME do dia.
 function proximoTreinoId(dias){
   if(!dias||!dias.length)return null;
   var tKeys=Object.keys(treinos).sort();
   var ids=dias.map(function(x){return x.id;});
-  var lastId=null;
-  for(var i=tKeys.length-1;i>=0;i--){if(ids.indexOf(treinos[tKeys[i]].dia)>=0){lastId=treinos[tKeys[i]].dia;break;}}
-  if(!lastId)return dias[0].id;
-  return dias[(ids.indexOf(lastId)+1)%dias.length].id;
+  var nomes=dias.map(function(x){return x.nome;});
+  var lastIdx=-1;
+  for(var i=tKeys.length-1;i>=0;i--){
+    var sess=treinos[tKeys[i]];
+    var idx=ids.indexOf(sess.dia);
+    if(idx<0&&sess.diaNome)idx=nomes.indexOf(sess.diaNome);
+    if(idx>=0){lastIdx=idx;break;}
+  }
+  if(lastIdx<0)return dias[0].id;
+  return dias[(lastIdx+1)%dias.length].id;
 }
 
 function renderTreinoList(){
@@ -783,18 +790,19 @@ function renderTreinoExec(){
   h+='<button onclick="salvarGasto()" id="btn-gasto" style="padding:11px 18px;background:#fbbf2422;color:#fbbf24;border-radius:10px;border:1px solid #fbbf2444;cursor:pointer;font-size:14px;font-weight:800">OK</button>';
   h+='</div></div>';
 
-  // timer descanso
-  h+='<div class="card" style="border-left:3px solid #f97316;margin-bottom:10px">';
-  h+='<div style="display:flex;justify-content:space-between;align-items:center">';
-  h+='<div>'+tag("Descanso","#f97316")+'<div class="timer-big '+(timerRunning?"run":"")+'" id="timer-display">'+(timerVal>0?timerVal+"s":"—")+'</div></div>';
-  h+='<div style="display:flex;gap:8px">';
+  // timer descanso — FIXO no topo enquanto rola os exercícios
   var t1=ehPesado?90:60, t2=ehPesado?120:90;
+  h+='<div style="position:sticky;top:0;z-index:50;background:#0a0f0a;margin:0 -18px 10px;padding:6px 18px 10px">';
+  h+='<div class="card" style="border-left:3px solid #f97316;margin:0">';
+  h+='<div style="display:flex;justify-content:space-between;align-items:center">';
+  h+='<div>'+tag("Descanso","#f97316")+'<div class="timer-big '+(timerRunning?"run":"")+'" id="timer-display" style="font-size:40px">'+(timerVal>0?timerVal+"s":"—")+'</div></div>';
+  h+='<div style="display:flex;gap:8px">';
   h+='<button onclick="startTimer('+t1+')" style="padding:12px 18px;background:#f9731622;color:#f97316;border-radius:12px;border:1px solid #f9731644;cursor:pointer;font-size:14px;font-weight:800">'+t1+'s</button>';
   h+='<button onclick="startTimer('+t2+')" style="padding:12px 18px;background:#f9731622;color:#f97316;border-radius:12px;border:1px solid #f9731644;cursor:pointer;font-size:14px;font-weight:800">'+t2+'s</button>';
   if(timerRunning)h+='<button onclick="stopTimer()" style="padding:12px 14px;background:#243324;color:#7a9a7a;border-radius:12px;border:none;cursor:pointer">✕</button>';
   h+='</div></div>';
   if(timerRunning)h+='<div style="margin-top:12px">'+bar(timerVal,t2,4,"#4ade80","#f97316")+'</div>';
-  h+='</div>';
+  h+='</div></div>';
 
   // exercícios
   t.ex.forEach(function(e,i){
@@ -879,7 +887,7 @@ function salvarComent(exIdx,exNome){
 function salvarGasto(){
   var g=document.getElementById("inp-gasto");
   if(!g||!g.value)return;
-  if(!treinos[hoje()])treinos[hoje()]={dia:treinoAtivo?treinoAtivo.id:"",logs:{}};
+  if(!treinos[hoje()])treinos[hoje()]={dia:treinoAtivo?treinoAtivo.id:"",diaNome:treinoAtivo?treinoAtivo.nome:"",logs:{}};
   treinos[hoje()].gasto=g.value;save();
   var btn=document.getElementById("btn-gasto");
   if(btn){btn.textContent="✓";btn.style.background="#1a3a1a";btn.style.color="#4ade80";setTimeout(function(){btn.textContent="OK";btn.style.background="#fbbf2422";btn.style.color="#fbbf24";},1500);}
@@ -898,7 +906,7 @@ function concluirTreino(){
     }
   });
   treinoAtivo.ex.forEach(function(e){var c=treinoLogs["coment-"+e.nome];if(c!==undefined&&String(c).trim())comentHist[e.nome]=c;}); // guarda as notas pra próxima vez
-  treinos[hoje()]={dia:treinoAtivo.id,logs:treinoLogs,duracao:treinoElapsed,gasto:(treinos[hoje()]&&treinos[hoje()].gasto)||""};
+  treinos[hoje()]={dia:treinoAtivo.id,diaNome:treinoAtivo.nome,logs:treinoLogs,duracao:treinoElapsed,gasto:(treinos[hoje()]&&treinos[hoje()].gasto)||""};
   save();
   treinoAtivo=null;openEx=-1;stopTimer();clearInterval(treinoClockIv);
   document.getElementById("pg-treino").innerHTML=
