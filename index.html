@@ -52,6 +52,7 @@ textarea{background:#0a0f0a;border:1px solid #243324;border-radius:12px;padding:
 <div id="pg-admin"  class="page"></div>
 <div id="pg-saude"  class="page"></div>
 <div id="pg-coach"  class="page"></div>
+<div id="pg-cardio" class="page"></div>
 
 <div class="nav" style="display:none">
   <div class="nav-inner">
@@ -384,7 +385,7 @@ function uk(k){return "u_"+(currentUser?currentUser.id:"anon")+"_"+k;}
 function sget(k,d){try{var v=localStorage.getItem(uk(k));return v?JSON.parse(v):d;}catch(e){return d;}}
 function sset(k,v){try{localStorage.setItem(uk(k),JSON.stringify(v));}catch(e){}}
 
-var pesos,dietaLog,treinos,pressoes,diario,cargaHist,referencias,whoopData,coachMsgs,trocaTreino,bodyFat,comentHist;
+var pesos,dietaLog,treinos,pressoes,diario,cargaHist,referencias,whoopData,coachMsgs,trocaTreino,bodyFat,comentHist,cardioLog,zonasFC;
 function loadUserData(){
   pesos       = sget("ff_pesos",       []);
   dietaLog    = sget("ff_dieta",       {});
@@ -398,6 +399,8 @@ function loadUserData(){
   trocaTreino = sget("ff_troca",       ""); // data ISO agendada pra revisar/progredir o plano (Coach ou manual)
   bodyFat     = sget("ff_bodyfat",     []); // [{data, bf}] gordura corporal %
   comentHist  = sget("ff_coment",      {}); // {exNome: última nota} pra ver na próxima vez
+  cardioLog   = sget("ff_cardio",      []); // [{data, tipo, min, dist, zona, nota}] sessões de cardio/pedal
+  zonasFC     = sget("ff_zonasfc",     null); // {fcmax, fcrep} pra calcular zonas de FC (Karvonen)
 }
 
 function save(){
@@ -406,11 +409,13 @@ function save(){
   sset("ff_treinos",treinos); sset("ff_pressoes",pressoes);
   sset("ff_diario",diario); sset("ff_cargas",cargaHist);
   sset("ff_referencias",referencias); sset("ff_whoop",whoopData); sset("ff_coach",coachMsgs); sset("ff_troca",trocaTreino); sset("ff_bodyfat",bodyFat); sset("ff_coment",comentHist);
+  sset("ff_cardio",cardioLog); sset("ff_zonasfc",zonasFC);
   // 2) espelha pro Supabase em segundo plano
   pushCloud("ff_pesos",pesos); pushCloud("ff_dieta",dietaLog);
   pushCloud("ff_treinos",treinos); pushCloud("ff_pressoes",pressoes);
   pushCloud("ff_diario",diario); pushCloud("ff_cargas",cargaHist);
   pushCloud("ff_referencias",referencias); pushCloud("ff_whoop",whoopData); pushCloud("ff_coach",coachMsgs); pushCloud("ff_troca",trocaTreino); pushCloud("ff_bodyfat",bodyFat); pushCloud("ff_coment",comentHist);
+  pushCloud("ff_cardio",cardioLog); pushCloud("ff_zonasfc",zonasFC);
 }
 
 // agenda (ou limpa) a data de revisar/progredir o plano
@@ -713,6 +718,8 @@ function renderTreinoList(){
   h+='<div style="font-size:28px;font-weight:900;letter-spacing:-.02em">Treino</div></div>';
 
   h+='<div class="card" style="border-left:3px solid #a78bfa;margin-bottom:14px;display:flex;align-items:center;justify-content:space-between;cursor:pointer" onclick="openAdmin()"><div>'+tag(currentUser.role==="admin"?"Admin":"Montar","#a78bfa")+'<div style="font-size:15px;font-weight:800;margin-top:6px">'+(currentUser.role==="admin"?"Montar treinos e dietas":"Montar meu treino e dieta")+'</div><div style="font-size:12px;color:#7a9a7a;margin-top:2px">'+(currentUser.role==="admin"?"Editar o plano de cada cliente":"Criar/editar seu plano")+'</div></div><div style="font-size:24px;color:#a78bfa">⚙</div></div>';
+
+  h+='<div class="card" style="border-left:3px solid #f87171;margin-bottom:14px;display:flex;align-items:center;justify-content:space-between;cursor:pointer" onclick="openCardio()"><div>'+tag("Cardio","#f87171")+'<div style="font-size:15px;font-weight:800;margin-top:6px">Pedal & cardio</div><div style="font-size:12px;color:#7a9a7a;margin-top:2px">Registrar sessões por zona de FC</div></div><div style="font-size:22px;color:#f87171">🚴</div></div>';
 
   if(!diasComEx.length){
     h+='<div class="card" style="border-left:3px solid #3d5a3d"><div style="font-size:15px;font-weight:700;color:#7a9a7a">Nenhum treino montado ainda</div><div style="font-size:13px;color:#3d5a3d;margin-top:6px;line-height:1.5">'+(currentUser&&currentUser.role==="admin"?"Use ⚙ Montar treinos na tela inicial pra criar o seu.":"Crie o seu em “Meu treino e dieta” ou aguarde seu personal.")+'</div></div>';
@@ -1642,6 +1649,123 @@ function exportLog(){
   try{navigator.clipboard.writeText(texto);}catch(e){var el=document.createElement("textarea");el.value=texto;document.body.appendChild(el);el.select();document.execCommand("copy");document.body.removeChild(el);}
   var btn=document.getElementById("btn-export");
   if(btn){btn.textContent="✓ COPIADO — COLE NO CLAUDE";btn.style.background="#1a3a1a";btn.style.color="#4ade80";btn.style.border="1px solid #4ade80";setTimeout(renderCorpo,3000);}
+}
+
+// ── CARDIO / PEDAL (tracking por zona de FC) ──────────────────────────────────
+var cardioZonaSel="",fcEdit=false,cardioDraft={};
+var ZONA_COR={Z1:"#60a5fa",Z2:"#4ade80",Z3:"#fbbf24",Z4:"#f97316",Z5:"#f87171"};
+function openCardio(){
+  document.querySelectorAll(".page").forEach(function(p){p.classList.remove("active");});
+  document.getElementById("pg-cardio").classList.add("active");
+  var _nav=document.querySelector(".nav");if(_nav)_nav.style.display="block";
+  curPage="cardio";cardioZonaSel="";fcEdit=false;cardioDraft={};renderCardio();window.scrollTo(0,0);
+}
+function zonasKarvonen(fcmax,fcrep){
+  var res=fcmax-fcrep;
+  var defs=[["Z1","50–60%","Regeneração · giro leve",.5,.6],["Z2","60–70%","Endurance · queima de gordura",.6,.7],["Z3","70–80%","Tempo · ritmo constante",.7,.8],["Z4","80–90%","Limiar · esforço forte",.8,.9],["Z5","90–100%","Máximo · tiros",.9,1]];
+  return defs.map(function(d){return {z:d[0],pct:d[1],foco:d[2],lo:Math.round(fcrep+res*d[3]),hi:Math.round(fcrep+res*d[4])};});
+}
+function toggleFCedit(){fcEdit=!fcEdit;renderCardio();}
+function salvarFCzonas(){
+  var mx=parseInt((document.getElementById("fc-max")||{}).value),rp=parseInt((document.getElementById("fc-rep")||{}).value);
+  if(!mx||!rp||mx<=rp){alert("Preencha FC máxima e de repouso (máx maior que repouso).");return;}
+  zonasFC={fcmax:mx,fcrep:rp};fcEdit=false;save();renderCardio();
+}
+function captureCardio(){
+  var g=function(id){var e=document.getElementById(id);return e?e.value:undefined;};
+  var t=g("cardio-tipo"),m=g("cardio-min"),d=g("cardio-dist"),n=g("cardio-nota");
+  if(t!==undefined)cardioDraft.tipo=t; if(m!==undefined)cardioDraft.min=m;
+  if(d!==undefined)cardioDraft.dist=d; if(n!==undefined)cardioDraft.nota=n;
+}
+function setCardioZona(z){captureCardio();cardioZonaSel=(cardioZonaSel===z?"":z);renderCardio();}
+function addCardio(){
+  var min=parseInt((document.getElementById("cardio-min")||{}).value)||0;
+  var dist=numBR((document.getElementById("cardio-dist")||{}).value);
+  var tipo=(document.getElementById("cardio-tipo")||{}).value||"Pedal";
+  var nota=((document.getElementById("cardio-nota")||{}).value||"").trim();
+  if(!min&&!dist){alert("Informe pelo menos os minutos ou a distância.");return;}
+  cardioLog.push({data:hoje(),tipo:tipo,min:min,dist:dist||"",zona:cardioZonaSel,nota:nota});
+  save();cardioZonaSel="";cardioDraft={};renderCardio();
+}
+function rmCardio(i){if(cardioLog[i]){cardioLog.splice(i,1);save();renderCardio();}}
+
+function renderCardio(){
+  var h='';
+  h+='<div style="display:flex;align-items:center;gap:12px;padding-top:24px;padding-bottom:12px">';
+  h+='<button style="background:none;border:none;color:#7a9a7a;cursor:pointer;font-size:15px;padding:0" onclick="goTo(\'treino\')">← Voltar</button>';
+  h+='<div style="flex:1"><div style="font-size:20px;font-weight:900">Cardio</div><div style="font-size:11px;color:#7a9a7a">Pedal · corrida · caminhada — por zona de FC</div></div></div>';
+
+  // ── Zonas de FC ──
+  h+='<div class="card" style="border-left:3px solid #f87171;margin-bottom:10px">';
+  h+='<div style="display:flex;justify-content:space-between;align-items:center">'+tag("Zonas de FC","#f87171");
+  if(zonasFC&&!fcEdit)h+='<div style="font-size:12px;color:#f97316;cursor:pointer;font-weight:700" onclick="toggleFCedit()">Editar</div>';
+  h+='</div>';
+  if(zonasFC&&!fcEdit){
+    h+='<div style="font-size:12px;color:#7a9a7a;margin-top:8px">FC máx '+zonasFC.fcmax+' · repouso '+zonasFC.fcrep+' bpm · método Karvonen</div><div style="margin-top:10px">';
+    zonasKarvonen(zonasFC.fcmax,zonasFC.fcrep).forEach(function(z,i,a){
+      h+='<div style="display:flex;align-items:center;gap:10px;padding:7px 0;'+(i<a.length-1?"border-bottom:1px solid #1e2e1e":"")+'">';
+      h+='<span style="font-size:12px;font-weight:800;color:'+ZONA_COR[z.z]+';width:24px">'+z.z+'</span>';
+      h+='<span style="font-size:14px;font-weight:800;font-family:monospace;width:84px">'+z.lo+'–'+z.hi+'</span>';
+      h+='<span style="font-size:11px;color:#7a9a7a;flex:1">'+z.foco+'</span></div>';
+    });
+    h+='</div>';
+  } else {
+    h+='<div style="font-size:12px;color:#7a9a7a;margin-top:8px;line-height:1.5">Informe sua FC máxima e de repouso — calculo suas 5 zonas (método Karvonen).</div>';
+    h+='<div style="display:flex;gap:8px;margin-top:10px">';
+    h+='<div style="flex:1"><div style="font-size:9px;color:#7a9a7a;font-weight:700;letter-spacing:.06em;margin-bottom:3px">FC MÁXIMA</div><input class="inp" id="fc-max" type="number" inputmode="numeric" value="'+(zonasFC?zonasFC.fcmax:"")+'" placeholder="166"/></div>';
+    h+='<div style="flex:1"><div style="font-size:9px;color:#7a9a7a;font-weight:700;letter-spacing:.06em;margin-bottom:3px">FC REPOUSO</div><input class="inp" id="fc-rep" type="number" inputmode="numeric" value="'+(zonasFC?zonasFC.fcrep:"")+'" placeholder="54"/></div>';
+    h+='</div><button class="btn-main" onclick="salvarFCzonas()" style="margin-top:10px">SALVAR ZONAS</button>';
+  }
+  h+='</div>';
+
+  // ── Registrar sessão ──
+  h+='<div class="card" style="border-left:3px solid #4ade80;margin-bottom:10px">'+tag("Registrar sessão","#4ade80");
+  h+='<div style="display:flex;gap:8px;margin-top:12px">';
+  h+='<select id="cardio-tipo" class="inp" style="flex:1;-webkit-appearance:none;appearance:none">'+["Pedal","Corrida","Caminhada","Outro"].map(function(t){return '<option'+(cardioDraft.tipo===t?" selected":"")+'>'+t+'</option>';}).join('')+'</select>';
+  h+='<input class="inp" id="cardio-min" type="number" inputmode="numeric" value="'+(cardioDraft.min||"")+'" placeholder="min" style="width:76px;text-align:center"/>';
+  h+='<input class="inp" id="cardio-dist" type="text" inputmode="decimal" value="'+(cardioDraft.dist||"")+'" placeholder="km" style="width:76px;text-align:center"/>';
+  h+='</div>';
+  h+='<div style="font-size:9px;color:#7a9a7a;font-weight:700;letter-spacing:.06em;margin:12px 0 6px">ZONA (opcional)</div>';
+  h+='<div style="display:flex;gap:6px">';
+  ["Z1","Z2","Z3","Z4","Z5"].forEach(function(z){
+    var on=cardioZonaSel===z;
+    h+='<button onclick="setCardioZona(\''+z+'\')" style="flex:1;padding:9px 4px;border-radius:10px;border:1px solid '+(on?ZONA_COR[z]:"#243324")+';background:'+(on?ZONA_COR[z]+"22":"#0a0f0a")+';color:'+(on?ZONA_COR[z]:"#7a9a7a")+';font-size:12px;font-weight:800;cursor:pointer">'+z+'</button>';
+  });
+  h+='</div>';
+  h+='<textarea id="cardio-nota" rows="2" placeholder="Observação (opcional): rota, subidas, como se sentiu..." style="margin-top:10px;font-size:13px">'+(cardioDraft.nota||"")+'</textarea>';
+  h+='<button class="btn-main" onclick="addCardio()" style="margin-top:10px">REGISTRAR</button>';
+  h+='</div>';
+
+  // ── Resumo da semana ──
+  var seg=semanaSeg(hoje());
+  var sem=cardioLog.filter(function(c){return c.data>=seg;});
+  if(sem.length){
+    var totMin=sem.reduce(function(s,c){return s+(c.min||0);},0);
+    var totKm=sem.reduce(function(s,c){return s+(parseFloat(c.dist)||0);},0);
+    h+='<div class="card" style="margin-bottom:10px">'+tag("Esta semana","#60a5fa");
+    h+='<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:12px">';
+    h+=statBox("Sessões",sem.length,"","#60a5fa")+statBox("Tempo",totMin,"min","#4ade80")+statBox("Distância",f1(totKm),"km","#f97316");
+    h+='</div></div>';
+  }
+
+  // ── Histórico ──
+  if(cardioLog.length){
+    h+='<div class="card" style="margin-bottom:10px">'+tag("Histórico","#7a9a7a")+'<div style="margin-top:8px">';
+    cardioLog.slice().reverse().slice(0,40).forEach(function(c,ri){
+      var idx=cardioLog.length-1-ri;
+      h+='<div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid #1e2e1e">';
+      h+='<div style="flex:1"><div style="font-size:13px;font-weight:700">'+escapeHtml(c.tipo||"Cardio")+(c.zona?' <span style="font-size:10px;font-weight:800;color:'+(ZONA_COR[c.zona]||"#7a9a7a")+'">'+c.zona+'</span>':'')+'</div>';
+      h+='<div style="font-size:11px;color:#7a9a7a;margin-top:2px">'+fmtD(c.data)+(c.min?' · '+c.min+' min':'')+(c.dist?' · '+c.dist+' km':'')+'</div>';
+      if(c.nota)h+='<div style="font-size:11px;color:#3d5a3d;margin-top:2px">'+escapeHtml(c.nota)+'</div>';
+      h+='</div>';
+      h+='<button onclick="rmCardio('+idx+')" style="background:#3a1a1a;color:#f87171;border:none;border-radius:8px;width:30px;height:30px;cursor:pointer;flex-shrink:0">✕</button></div>';
+    });
+    h+='</div></div>';
+  } else {
+    h+='<div style="font-size:13px;color:#7a9a7a;text-align:center;padding:24px 20px;line-height:1.6">Nenhuma sessão ainda.<br>Registre seu primeiro pedal acima. 🚴</div>';
+  }
+
+  document.getElementById("pg-cardio").innerHTML=h;
 }
 
 // ── AUTH SCREEN ──────────────────────────────────────────────────────────────
