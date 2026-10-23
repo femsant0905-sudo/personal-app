@@ -579,7 +579,7 @@ function goTo(page){
 // ── HOME ─────────────────────────────────────────────────────────────────────
 function renderHome(){
   var altura=currentUser.altura||1.90;
-  var pesoIni=currentUser.peso_inicial||118.5;
+  var pesoIni=pesos.length?pesos[0].peso:(currentUser.peso_inicial||118.5); // 1o registro real (bate com o Exportar Log); perfil só como fallback
   var pesoMeta=currentUser.peso_meta||95;
   var peso=pesos.length?pesos[pesos.length-1].peso:pesoIni;
   var prev=pesos.length>1?pesos[pesos.length-2].peso:null;
@@ -1473,7 +1473,7 @@ function renderResumo(){
   }
 
   // ── Destaques ──
-  var pesoIni=currentUser.peso_inicial||(pesos.length?pesos[0].peso:0);
+  var pesoIni=pesos.length?pesos[0].peso:(currentUser.peso_inicial||0); // 1o registro real (bate com o Exportar Log); perfil só como fallback
   var pesoAtual=pesos.length?pesos[pesos.length-1].peso:pesoIni;
   var pesoMeta=currentUser.peso_meta||95;
   var altura=currentUser.altura||1.90;
@@ -1498,7 +1498,7 @@ function renderResumo(){
   h+=statBox("Kcal",totKcal>=1000?nf(totKcal/1000)+"k":nf(totKcal),"","#f87171");
   h+='</div>';
   h+='<div class="bar-wrap mt4" style="height:6px"><div class="bar-fill" style="width:'+pctMeta+'%;background:linear-gradient(90deg,#f97316,#fbbf24)"></div></div>';
-  h+='<div class="chart-foot"><span>'+f1(pesoIni)+' kg</span><span>hoje '+f1(pesoAtual)+' kg</span><span>'+f1(pesoMeta)+' kg</span></div>';
+  h+='<div class="chart-foot"><span>'+f1(pesoIni)+' kg'+(pesos.length?' · '+fmtD(pesos[0].data):'')+'</span><span>hoje '+f1(pesoAtual)+'</span><span>meta '+f1(pesoMeta)+'</span></div>';
   h+='</div>';
 
   // ── Peso ──
