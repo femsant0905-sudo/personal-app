@@ -1292,8 +1292,10 @@ function renderCorpo(){
       h+='<div style="font-size:7px;color:#3d5a3d;margin-top:3px">'+p.data.slice(5)+'</div></div>';
     });
     h+='</div>';
-    var p0=pesos[0],pN=pesos[pesos.length-1],dif=pN.peso-p0.peso;
-    h+='<div style="display:flex;justify-content:space-between;font-size:11px;color:#7a9a7a;margin-top:10px"><span>Início: '+f1(p0.peso)+' kg</span><span style="color:'+(dif<=0?"#4ade80":"#f87171")+';font-weight:700">'+(pesos.length>1?f1(dif)+" kg":"")+'</span><span>Atual: '+f1(pN.peso)+' kg</span></div></div>';
+    var p0=pesos[0],pN=pesos[pesos.length-1];
+    var pIniC=currentUser.peso_inicial||p0.peso; // mesma base das outras telas
+    var dif=pN.peso-pIniC;
+    h+='<div style="display:flex;justify-content:space-between;font-size:11px;color:#7a9a7a;margin-top:10px"><span>Início: '+f1(pIniC)+' kg</span><span style="color:'+(dif<=0?"#4ade80":"#f87171")+';font-weight:700">'+(pesos.length>1?f1(dif)+" kg":"")+'</span><span>Atual: '+f1(pN.peso)+' kg</span></div></div>';
   }
 
   if(pList.length>0){
