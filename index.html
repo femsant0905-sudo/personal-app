@@ -398,18 +398,25 @@ var REFEICOES_PADRAO = REFEICOES; // fallback quando o usuário não tem dieta p
 var METAS = {kcal:2200, prot:160, carb:220, gord:65, sodio:1500};
 
 var ALONGAMENTOS = [
-  {grupo:"Pescoço", cor:"#f97316", moves:[
-    {nome:"Inclinação lateral",  dur:30, desc:"Sente-se ereto. Incline a cabeça para um lado, orelha em direção ao ombro. Segure 30s cada lado."},
-    {nome:"Rotação cervical",    dur:30, desc:"Vire a cabeça lentamente para um lado até sentir leve tensão. Segure 30s. Repita do outro lado."},
-    {nome:"Flexão anterior",     dur:30, desc:"Leve o queixo em direção ao peito devagar. Sinta o alongamento na nuca. Segure 30s."},
-    {nome:"Trapézio superior",   dur:40, desc:"Incline a cabeça para o lado, mão sobre a têmpora, deixe o peso aprofundar o alongamento. 40s cada lado."}
+  // Rotina diária (~9 min): sequência fixa, do chão até em pé — sem trocar de posição à toa.
+  {grupo:"Rotina Diária", cor:"#4ade80", moves:[
+    {nome:"Gato-camelo",                 dur:45, desc:"Em quatro apoios. Alterne arquear a coluna para baixo e curvar para cima, devagar, acompanhando a respiração. Aquece a coluna inteira antes do resto."},
+    {nome:"Joelho ao peito",             dur:40, desc:"Deitado de costas, puxe um joelho ao peito com as duas mãos. Mantenha a lombar colada no chão. 40s cada lado."},
+    {nome:"Torção lombar deitado",       dur:40, desc:"Deitado, joelho dobrado cruza para o lado oposto. Os DOIS ombros ficam no chão. Respire fundo e solte. 40s cada lado."},
+    {nome:"Piriforme (figura 4)",        dur:40, desc:"Deitado, tornozelo cruzado sobre o joelho oposto. Puxe a coxa de trás em direção ao peito. Glúteo solto = menos dor lombar. 40s cada lado."},
+    {nome:"Flexor do quadril (afundo)",  dur:45, desc:"Ajoelhado, um pé à frente. Empurre o quadril PARA FRENTE contraindo o glúteo de trás. O MAIS IMPORTANTE pra quem fica sentado o dia todo — flexor encurtado puxa a lombar. 45s cada lado."},
+    {nome:"Postura da criança",          dur:60, desc:"Sentado nos calcanhares, braços esticados à frente no chão. Caminhe as mãos para um lado e depois para o outro, pra pegar o latíssimo. Respire fundo."},
+    {nome:"Abertura de peito no batente",dur:40, desc:"Em pé, antebraço apoiado no batente da porta, cotovelo na altura do ombro. Gire o tronco para o lado oposto. Abre peito e frente do ombro. 40s cada braço."},
+    {nome:"Trapézio superior",           dur:30, desc:"Incline a cabeça para o lado, mão sobre a têmpora, SEM forçar — só o peso do braço. 30s cada lado."}
   ]},
-  {grupo:"Lombar & Quadril", cor:"#4ade80", moves:[
-    {nome:"Joelho ao peito",          dur:40, desc:"Deite de costas. Puxe um joelho com as duas mãos em direção ao peito. Costas no chão. 40s cada lado."},
-    {nome:"Torção lombar deitado",    dur:40, desc:"Deitado, joelho dobrado cruza para o lado oposto. Ombros no chão. 40s cada lado. Respire fundo."},
-    {nome:"Postura da criança",       dur:60, desc:"Joelhos no chão, sente nos calcanhares, braços à frente no chão. Respire profundamente. 60 segundos."},
-    {nome:"Alongamento do piriforme", dur:40, desc:"Deitado, cruce o tornozelo sobre o joelho oposto. Puxe a coxa em direção ao peito. 40s cada lado."},
-    {nome:"Gato-vaca",                dur:45, desc:"Em quatro apoios. Arqueie as costas para baixo (vaca), depois curve para cima (gato). Lento, 10 repetições."}
+  // Extras: pra quando sobrar tempo, ou focar numa região específica.
+  {grupo:"Extras", cor:"#fbbf24", moves:[
+    {nome:"Rotação torácica",      dur:40, desc:"Em quatro apoios, mão atrás da cabeça, gire o cotovelo em direção ao teto acompanhando com o olhar. Melhora postura e o próprio supino. 40s cada lado."},
+    {nome:"Peitoral no chão",      dur:45, desc:"Deitado de bruços, braço aberto a 90°, role o corpo para o lado oposto. Alonga peito e frente do ombro. 45s cada lado."},
+    {nome:"Posterior de coxa",     dur:40, desc:"Sentado, uma perna estendida. Incline o tronco à frente mantendo as COSTAS RETAS — não arredonde a lombar. 40s cada lado."},
+    {nome:"Quadríceps em pé",      dur:40, desc:"Em pé, puxe o calcanhar ao glúteo. Joelhos juntos e quadril neutro (não empine). 40s cada lado."},
+    {nome:"Panturrilha na parede", dur:40, desc:"Mãos na parede, perna de trás estendida, calcanhar no chão. 40s cada lado."},
+    {nome:"Glúteo na cadeira",     dur:40, desc:"Sentado, tornozelo sobre o joelho oposto, incline o tronco à frente. Dá pra fazer na mesa do trabalho. 40s cada lado."}
   ]}
 ];
 
@@ -546,6 +553,20 @@ function getUltimaCarga(exNome){
   if(!last.series||!last.series.length)return null;
   // retorna carga da última série registrada
   return last.series[last.series.length-1].kg;
+}
+
+// recorde do exercício: maior carga já registrada (com as reps daquela série)
+function getRecorde(exNome){
+  var hist=cargaHist[exNome];
+  if(!hist||!hist.length)return null;
+  var best=null;
+  hist.forEach(function(sess){
+    (sess.series||[]).forEach(function(s){
+      var kg=parseFloat(s.kg)||0;
+      if(kg>0&&(!best||kg>best.kg))best={kg:kg,reps:s.reps,data:sess.data};
+    });
+  });
+  return best;
 }
 
 function salvarCargaHistorico(exNome, series){
@@ -746,6 +767,15 @@ function salvarDiario(){
 var treinoAtivo=null,treinoLogs={},openEx=-1;
 var timerVal=0,timerRunning=false,timerInterval=null;
 var treinoStart=null,treinoElapsed=0,treinoClockIv=null;
+var recordesNovos={};   // {exNome: carga} — recordes batidos nesta sessão
+var treinoJejum=true;   // true = treino em jejum (padrão do Fernando), false = alimentado
+function setJejum(v){
+  treinoJejum=v;
+  // troca o visual sem re-renderizar (não perde o que já foi digitado nas séries)
+  var a=document.getElementById("btn-jejum"),b=document.getElementById("btn-alim");
+  if(a){a.style.borderColor=v?"#f9731566":"#243324";a.style.background=v?"#f9731622":"#0a0f0a";a.style.color=v?"#f97316":"#7a9a7a";}
+  if(b){b.style.borderColor=!v?"#4ade8066":"#243324";b.style.background=!v?"#4ade8022":"#0a0f0a";b.style.color=!v?"#4ade80":"#7a9a7a";}
+}
 
 function renderTreino(){if(!treinoAtivo){renderTreinoList();return;}renderTreinoExec();}
 
@@ -826,6 +856,8 @@ function renderTreinoList(){
 function startTreino(id){
   for(var i=0;i<TREINOS.length;i++){if(TREINOS[i].id===id){treinoAtivo=TREINOS[i];break;}}
   treinoLogs={};openEx=-1;treinoStart=Date.now();treinoElapsed=0;
+  recordesNovos={};
+  treinoJejum=sget("ff_jejum_ult",true)!==false; // lembra a escolha da última vez
   stopTimer();clearInterval(treinoClockIv);
   treinoClockIv=setInterval(function(){
     treinoElapsed=Math.floor((Date.now()-treinoStart)/1000);
@@ -850,6 +882,12 @@ function renderTreinoExec(){
   h+='<div style="font-size:12px;color:#7a9a7a">'+(t.sub||"")+'</div></div>';
   h+='<div style="text-align:right"><div style="font-size:10px;color:#7a9a7a;font-weight:700;letter-spacing:.1em;text-transform:uppercase">Tempo</div>';
   h+='<div id="treino-clock" style="font-size:26px;font-weight:900;font-family:monospace;color:#f97316">'+clockStr+'</div></div></div>';
+
+  // em jejum ou alimentado (fica salvo na sessão pra comparar desempenho depois)
+  h+='<div style="display:flex;gap:6px;margin-bottom:10px">';
+  h+='<button id="btn-jejum" onclick="setJejum(true)" style="flex:1;padding:10px;border-radius:12px;cursor:pointer;font-size:12px;font-weight:800;letter-spacing:.04em;border:1px solid '+(treinoJejum?"#f9731566":"#243324")+';background:'+(treinoJejum?"#f9731622":"#0a0f0a")+';color:'+(treinoJejum?"#f97316":"#7a9a7a")+'">EM JEJUM</button>';
+  h+='<button id="btn-alim" onclick="setJejum(false)" style="flex:1;padding:10px;border-radius:12px;cursor:pointer;font-size:12px;font-weight:800;letter-spacing:.04em;border:1px solid '+(!treinoJejum?"#4ade8066":"#243324")+';background:'+(!treinoJejum?"#4ade8022":"#0a0f0a")+';color:'+(!treinoJejum?"#4ade80":"#7a9a7a")+'">ALIMENTADO</button>';
+  h+='</div>';
 
   // gasto
   h+='<div class="card" style="border-left:3px solid #fbbf24;margin-bottom:10px">';
@@ -880,6 +918,8 @@ function renderTreinoExec(){
     var doneCount=Object.keys(logEx).length;
     var isOpen=openEx===i;
     var ultimaCarga=getUltimaCarga(e.nome);
+    var recorde=getRecorde(e.nome);
+    var bateuRecorde=recordesNovos[e.nome];
     var comp=isCompost(e.nome);
 
     h+='<div class="card" style="margin-bottom:10px;cursor:pointer;'+(doneCount===e.s?"border-left:3px solid #4ade80":comp?"border-left:3px solid #f97316":"border-left:3px solid #3d5a3d")+'" onclick="toggleEx('+i+')">';
@@ -889,9 +929,11 @@ function renderTreinoExec(){
     h+='<div style="display:flex;align-items:center;gap:6px">';
     h+='<div style="font-size:15px;font-weight:700">'+e.nome+'</div>';
     if(comp)h+=tag(ehPesado?"120s":"90s","#f97316"); else h+=tag(ehPesado?"90s":"60s","#7a9a7a");
+    if(bateuRecorde)h+=tag("🏆 Novo recorde","#4ade80");
     h+='</div>';
     h+='<div style="font-size:12px;color:#7a9a7a;margin-top:2px">'+e.s+' × '+e.r;
-    if(ultimaCarga)h+=' · <span style="color:#fbbf24">último: '+ultimaCarga+unidadePeso()+'</span>';
+    if(ultimaCarga)h+=' · <span style="color:#fbbf24">último '+ultimaCarga+unidadePeso()+'</span>';
+    if(recorde)h+=' · <span style="color:#4ade80">🏆 '+recorde.kg+unidadePeso()+(recorde.reps?'×'+recorde.reps:'')+'</span>';
     h+='</div></div>';
     if(doneCount>0)h+=tag(doneCount+"/"+e.s,"#4ade80");
     h+='<div style="font-size:14px;color:#3d5a3d">'+(isOpen?"▲":"▼")+'</div></div>';
@@ -935,6 +977,9 @@ function logSerie(exIdx,exNome,s){
   var carga=document.getElementById("scarga-"+exIdx+"-"+s);
   var reps=document.getElementById("sreps-"+exIdx+"-"+s);
   if(!carga||!reps||!carga.value||!reps.value)return;
+  // novo recorde? compara com o histórico ANTES de salvar
+  var rec=getRecorde(exNome);
+  if(numBR(carga.value)>(rec?rec.kg:0))recordesNovos[exNome]=numBR(carga.value);
   if(!treinoLogs[exNome])treinoLogs[exNome]={};
   treinoLogs[exNome][s]={kg:carga.value,reps:reps.value};
   var isUltimoEx=exIdx===treinoAtivo.ex.length-1;
@@ -976,7 +1021,8 @@ function concluirTreino(){
     }
   });
   treinoAtivo.ex.forEach(function(e){var c=treinoLogs["coment-"+e.nome];if(c!==undefined&&String(c).trim())comentHist[e.nome]=c;}); // guarda as notas pra próxima vez
-  treinos[hoje()]={dia:treinoAtivo.id,diaNome:treinoAtivo.nome,logs:treinoLogs,duracao:treinoElapsed,gasto:(treinos[hoje()]&&treinos[hoje()].gasto)||""};
+  treinos[hoje()]={dia:treinoAtivo.id,diaNome:treinoAtivo.nome,logs:treinoLogs,duracao:treinoElapsed,gasto:(treinos[hoje()]&&treinos[hoje()].gasto)||"",jejum:treinoJejum};
+  sset("ff_jejum_ult",treinoJejum); // vira o padrão da próxima vez
   save();
   treinoAtivo=null;openEx=-1;stopTimer();clearInterval(treinoClockIv);
   document.getElementById("pg-treino").innerHTML=
@@ -1005,10 +1051,9 @@ var alongGrupo=null,alongDone={},alongTimer=0,alongRunning=false,alongIv=null,op
 function renderAlong(){if(!alongGrupo){renderAlongList();return;}renderAlongExec();}
 function renderAlongList(){
   var h='';
-  h+='<div style="padding-top:28px;padding-bottom:16px"><div style="font-size:12px;color:#7a9a7a;font-weight:600;letter-spacing:.1em;text-transform:uppercase;margin-bottom:6px">Rotina Noturna</div>';
-  h+='<div style="font-size:28px;font-weight:900;letter-spacing:-.02em">Alongamento</div>';
-  h+='<div style="font-size:13px;color:#7a9a7a;margin-top:6px;line-height:1.6">Foco em pescoço e lombar · ~15 min</div></div>';
-  h+='<div class="card" style="margin-bottom:14px;background:#0d1a0d;border:1px solid #4ade8033"><div style="font-size:13px;color:#4ade80;line-height:1.7">Consistência de 10–15 min antes de dormir tem impacto direto na dor crônica em 2–4 semanas.</div></div>';
+  h+='<div class="page-head"><div class="lbl">Em casa · todo dia</div><div class="h1">Alongamento</div>';
+  h+='<div class="sub mt2">Rotina diária de ~9 min · Extras quando sobrar tempo</div></div>';
+  h+='<div class="card" style="background:#0d1a0d;border-color:#4ade8033"><div style="font-size:13px;color:#4ade80;line-height:1.7">Leve e todo dia vale mais que pesado uma vez por semana. A sequência diária é sempre a mesma — faça no automático, sem pensar.</div></div>';
   ALONGAMENTOS.forEach(function(g){
     var feitos=0;g.moves.forEach(function(_,i){if(alongDone[g.grupo+"-"+i])feitos++;});
     h+='<div class="card" style="margin-bottom:10px;cursor:pointer;border-left:3px solid '+g.cor+'" onclick="startAlong(\''+g.grupo+'\')">';
