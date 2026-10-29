@@ -783,14 +783,16 @@ function setJejum(v){
 // o treino é oferecido de volta ao reabrir.
 function salvarSessao(){
   if(!treinoAtivo)return;
-  try{sset("ff_sessao",{id:treinoAtivo.id,nome:treinoAtivo.nome,logs:treinoLogs,inicio:treinoStart,jejum:treinoJejum,ts:Date.now()});}catch(e){}
+  // guarda o DIA INTEIRO: assim retomar não depende do plano já ter carregado da nuvem
+  try{sset("ff_sessao",{id:treinoAtivo.id,nome:treinoAtivo.nome,dia:treinoAtivo,logs:treinoLogs,inicio:treinoStart,jejum:treinoJejum,ts:Date.now()});}catch(e){}
 }
 function limparSessao(){try{sset("ff_sessao",null);}catch(e){}}
-function sessaoPendente(){
+// precisaSeries=false -> aceita treino recém-começado (ainda sem série registrada)
+function sessaoPendente(precisaSeries){
   var s=sget("ff_sessao",null);
   if(!s||!s.id||!s.ts)return null;
-  if(Date.now()-s.ts>6*3600*1000)return null;              // mais de 6h: considera abandonado
-  if(!s.logs||!Object.keys(s.logs).length)return null;      // nada registrado ainda
+  if(Date.now()-s.ts>6*3600*1000)return null;                                  // mais de 6h: abandonado
+  if(precisaSeries!==false&&(!s.logs||!Object.keys(s.logs).length))return null; // nada registrado ainda
   return s;
 }
 function iniciarRelogio(){
@@ -802,10 +804,10 @@ function iniciarRelogio(){
   },1000);
 }
 function retomarSessao(){
-  var s=sessaoPendente();if(!s)return;
-  treinoAtivo=null;
-  for(var i=0;i<TREINOS.length;i++){if(TREINOS[i].id===s.id){treinoAtivo=TREINOS[i];break;}}
-  if(!treinoAtivo){limparSessao();renderTreinoList();return;}  // plano mudou: descarta
+  var s=sessaoPendente(false);if(!s)return;
+  treinoAtivo=s.dia||null;                                     // o próprio treino vem salvo na sessão
+  if(!treinoAtivo){for(var i=0;i<TREINOS.length;i++){if(TREINOS[i].id===s.id){treinoAtivo=TREINOS[i];break;}}}
+  if(!treinoAtivo)return;                                      // não achou: NÃO apaga a sessão
   treinoLogs=s.logs||{};openEx=-1;recordesNovos={};
   treinoJejum=s.jejum!==false;
   treinoStart=s.inicio||Date.now();
@@ -927,6 +929,7 @@ function startTreino(id){
   treinoJejum=sget("ff_jejum_ult",true)!==false; // lembra a escolha da última vez
   stopTimer();iniciarRelogio();
   manterTelaAcesa();
+  salvarSessao(); // já grava: se trocar de app antes da 1a série, o treino não se perde
   renderTreinoExec();
 }
 
@@ -2017,13 +2020,22 @@ async function enterApp(){
   document.querySelector(".nav").style.display="block";
   // mostra os dados locais na hora...
   loadUserData();
-  goTo("home");
+  // Voltou pro app no meio de um treino (ex: foi no Spotify e o Android derrubou a página)?
+  // Retoma direto, sem passar pelo Início. A sessão carrega o próprio treino, então
+  // isso funciona mesmo antes do plano chegar da nuvem.
+  var pend=sessaoPendente(false);
+  if(pend&&pend.dia&&(Date.now()-pend.ts)<2*3600*1000){
+    goTo("treino");    // acerta aba, menu e curPage
+    retomarSessao();   // e entra direto na tela de execução
+  } else {
+    goTo("home");
+  }
   // ...e atualiza com o que está na nuvem
   await pullCloud();
   await pullPlano();
   await pullDieta();
   loadUserData();
-  goTo(curPage);
+  if(treinoAtivo)renderTreinoExec(); else goTo(curPage); // não derruba o treino em andamento
 }
 
 // carrega o plano de treino do usuário (VAZIO se ainda não tiver — não usa o padrão)
