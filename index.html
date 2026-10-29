@@ -775,7 +775,59 @@ function setJejum(v){
   var a=document.getElementById("btn-jejum"),b=document.getElementById("btn-alim");
   if(a){a.style.borderColor=v?"#f9731566":"#243324";a.style.background=v?"#f9731622":"#0a0f0a";a.style.color=v?"#f97316":"#7a9a7a";}
   if(b){b.style.borderColor=!v?"#4ade8066":"#243324";b.style.background=!v?"#4ade8022":"#0a0f0a";b.style.color=!v?"#4ade80":"#7a9a7a";}
+  salvarSessao();
 }
+
+// ── SESSÃO EM ANDAMENTO (sobrevive a fechar/derrubar o app) ──────────────────
+// Cada série registrada vai pro disco na hora. Se o Android descartar a página,
+// o treino é oferecido de volta ao reabrir.
+function salvarSessao(){
+  if(!treinoAtivo)return;
+  try{sset("ff_sessao",{id:treinoAtivo.id,nome:treinoAtivo.nome,logs:treinoLogs,inicio:treinoStart,jejum:treinoJejum,ts:Date.now()});}catch(e){}
+}
+function limparSessao(){try{sset("ff_sessao",null);}catch(e){}}
+function sessaoPendente(){
+  var s=sget("ff_sessao",null);
+  if(!s||!s.id||!s.ts)return null;
+  if(Date.now()-s.ts>6*3600*1000)return null;              // mais de 6h: considera abandonado
+  if(!s.logs||!Object.keys(s.logs).length)return null;      // nada registrado ainda
+  return s;
+}
+function iniciarRelogio(){
+  clearInterval(treinoClockIv);
+  treinoClockIv=setInterval(function(){
+    treinoElapsed=Math.floor((Date.now()-treinoStart)/1000);
+    var el=document.getElementById("treino-clock");
+    if(el){var m=Math.floor(treinoElapsed/60),s=treinoElapsed%60;el.textContent=pad(m)+":"+pad(s);}
+  },1000);
+}
+function retomarSessao(){
+  var s=sessaoPendente();if(!s)return;
+  treinoAtivo=null;
+  for(var i=0;i<TREINOS.length;i++){if(TREINOS[i].id===s.id){treinoAtivo=TREINOS[i];break;}}
+  if(!treinoAtivo){limparSessao();renderTreinoList();return;}  // plano mudou: descarta
+  treinoLogs=s.logs||{};openEx=-1;recordesNovos={};
+  treinoJejum=s.jejum!==false;
+  treinoStart=s.inicio||Date.now();
+  treinoElapsed=Math.floor((Date.now()-treinoStart)/1000);
+  stopTimer();iniciarRelogio();manterTelaAcesa();
+  renderTreinoExec();window.scrollTo(0,0);
+}
+function descartarSessao(){if(confirm("Descartar o treino em andamento? As séries registradas serão perdidas.")){limparSessao();renderTreinoList();}}
+
+// ── WAKE LOCK: tela não apaga durante o treino ───────────────────────────────
+var wakeLockRef=null;
+async function manterTelaAcesa(){
+  try{if("wakeLock" in navigator)wakeLockRef=await navigator.wakeLock.request("screen");}catch(e){}
+}
+function liberarTela(){try{if(wakeLockRef){wakeLockRef.release();wakeLockRef=null;}}catch(e){}}
+document.addEventListener("visibilitychange",function(){
+  if(document.visibilityState==="visible"&&treinoAtivo&&!wakeLockRef)manterTelaAcesa();
+});
+// avisa antes de sair no meio do treino
+window.addEventListener("beforeunload",function(e){
+  if(treinoAtivo){e.preventDefault();e.returnValue="";}
+});
 
 function renderTreino(){if(!treinoAtivo){renderTreinoList();return;}renderTreinoExec();}
 
@@ -804,6 +856,21 @@ function renderTreinoList(){
   h+='<div style="padding-top:28px;padding-bottom:20px">';
   h+='<div style="font-size:12px;color:#7a9a7a;font-weight:600;letter-spacing:.1em;text-transform:uppercase;margin-bottom:6px">Seu plano</div>';
   h+='<div style="font-size:28px;font-weight:900;letter-spacing:-.02em">Treino</div></div>';
+
+  // treino interrompido nas últimas 6h — oferece retomar
+  var pend=sessaoPendente();
+  if(pend){
+    var nSeries=0;Object.keys(pend.logs||{}).forEach(function(k){if(k.indexOf("coment-")!==0)nSeries+=Object.keys(pend.logs[k]||{}).length;});
+    var hIni=new Date(pend.inicio||pend.ts);
+    h+='<div class="card l" style="--c:#fbbf24;margin-bottom:14px">';
+    h+='<div class="row">'+tag("Treino em andamento","#fbbf24")+'<span class="cap">iniciado '+pad(hIni.getHours())+':'+pad(hIni.getMinutes())+'</span></div>';
+    h+='<div class="h2 mt2">'+(pend.nome||"Treino")+'</div>';
+    h+='<div class="cap mt1">'+nSeries+' série'+(nSeries===1?"":"s")+' já registrada'+(nSeries===1?"":"s")+' — nada se perdeu.</div>';
+    h+='<div style="display:flex;gap:8px;margin-top:12px">';
+    h+='<button onclick="retomarSessao()" class="btn-main" style="flex:2">RETOMAR</button>';
+    h+='<button onclick="descartarSessao()" class="btn-sec" style="flex:1">Descartar</button>';
+    h+='</div></div>';
+  }
 
   h+='<div class="card" style="border-left:3px solid #a78bfa;margin-bottom:14px;display:flex;align-items:center;justify-content:space-between;cursor:pointer" onclick="openAdmin()"><div>'+tag(currentUser.role==="admin"?"Admin":"Montar","#a78bfa")+'<div style="font-size:15px;font-weight:800;margin-top:6px">'+(currentUser.role==="admin"?"Montar treinos e dietas":"Montar meu treino e dieta")+'</div><div style="font-size:12px;color:#7a9a7a;margin-top:2px">'+(currentUser.role==="admin"?"Editar o plano de cada cliente":"Criar/editar seu plano")+'</div></div><div style="font-size:24px;color:#a78bfa">⚙</div></div>';
 
@@ -858,12 +925,8 @@ function startTreino(id){
   treinoLogs={};openEx=-1;treinoStart=Date.now();treinoElapsed=0;
   recordesNovos={};
   treinoJejum=sget("ff_jejum_ult",true)!==false; // lembra a escolha da última vez
-  stopTimer();clearInterval(treinoClockIv);
-  treinoClockIv=setInterval(function(){
-    treinoElapsed=Math.floor((Date.now()-treinoStart)/1000);
-    var el=document.getElementById("treino-clock");
-    if(el){var m=Math.floor(treinoElapsed/60),s=treinoElapsed%60;el.textContent=pad(m)+":"+pad(s);}
-  },1000);
+  stopTimer();iniciarRelogio();
+  manterTelaAcesa();
   renderTreinoExec();
 }
 
@@ -987,6 +1050,7 @@ function logSerie(exIdx,exNome,s){
   var isUltimaSerie=seriesDone>=treinoAtivo.ex[exIdx].s;
   if(!isUltimoEx||!isUltimaSerie)startTimer(tempoDescanso(exNome));
   openEx=exIdx;
+  salvarSessao(); // grava no disco a cada série — não perde se o app cair
   renderTreinoExec();
 }
 
@@ -994,7 +1058,7 @@ function salvarComent(exIdx,exNome){
   var el=document.getElementById("coment-"+exIdx);
   if(!el)return;
   treinoLogs["coment-"+exNome]=el.value;
-  comentHist[exNome]=el.value;save(); // persiste a nota pra próxima vez
+  comentHist[exNome]=el.value;save();salvarSessao(); // persiste a nota pra próxima vez
   var btn=el.nextElementSibling;
   if(btn){btn.textContent="✓ Salvo";btn.style.color="#4ade80";setTimeout(function(){btn.textContent="Salvar comentário";btn.style.color="#7a9a7a";},1500);}
 }
@@ -1008,7 +1072,8 @@ function salvarGasto(){
   if(btn){btn.textContent="✓";btn.style.background="#1a3a1a";btn.style.color="#4ade80";setTimeout(function(){btn.textContent="OK";btn.style.background="#fbbf2422";btn.style.color="#fbbf24";},1500);}
 }
 
-function backTreino(){treinoAtivo=null;openEx=-1;stopTimer();clearInterval(treinoClockIv);renderTreinoList();}
+// Voltar NÃO descarta a sessão: ela continua salva e aparece pra retomar.
+function backTreino(){treinoAtivo=null;openEx=-1;stopTimer();clearInterval(treinoClockIv);liberarTela();renderTreinoList();}
 
 function concluirTreino(){
   // salvar histórico de cargas
@@ -1024,6 +1089,7 @@ function concluirTreino(){
   treinos[hoje()]={dia:treinoAtivo.id,diaNome:treinoAtivo.nome,logs:treinoLogs,duracao:treinoElapsed,gasto:(treinos[hoje()]&&treinos[hoje()].gasto)||"",jejum:treinoJejum};
   sset("ff_jejum_ult",treinoJejum); // vira o padrão da próxima vez
   save();
+  limparSessao();liberarTela();
   treinoAtivo=null;openEx=-1;stopTimer();clearInterval(treinoClockIv);
   document.getElementById("pg-treino").innerHTML=
     '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:300px;gap:20px;padding-top:60px">'+
