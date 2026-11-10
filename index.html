@@ -801,7 +801,32 @@ var ALTERNATIVAS={
   "Prancha Lateral":["Pallof no Cabo (anti-rotação)","Prancha Frontal"],
   "Dead bug (inseto morto)":["Prancha Frontal","Bird-dog (perdigueiro)"],
   "Bird-dog (perdigueiro)":["Dead bug (inseto morto)","Prancha Frontal"],
-  "Pallof no Cabo (anti-rotação)":["Prancha Lateral","Rotação no Cabo (oblíquos)"]
+  "Pallof no Cabo (anti-rotação)":["Prancha Lateral","Rotação no Cabo (oblíquos)"],
+  // peso livre
+  "Supino Reto Barra":["Supino Halter","Supino Máquina"],
+  "Supino Reto Halteres":["Supino Reto Barra","Supino Máquina"],
+  "Supino Inclinado Barra":["Supino Inclinado Halteres","Supino Inclinado Máquina"],
+  "Supino Inclinado Halteres":["Supino Inclinado Barra","Crossover Cabo"],
+  "Supino Halter":["Supino Reto Barra","Supino Máquina"],
+  "Desenvolvimento Halteres":["Desenvolvimento Militar Barra","Desenvolvimento Máquina"],
+  "Desenvolvimento Militar Barra":["Desenvolvimento Halteres","Desenvolvimento Máquina"],
+  "Remada Apoiada no Banco":["Remada Curvada Barra","Remada Sentada Máquina"],
+  "Remada Curvada Barra":["Remada Apoiada no Banco","Remada Sentada Máquina"],
+  "Remada Unilateral Halter":["Remada Apoiada no Banco","Remada Sentada Máquina"],
+  "Barra Fixa":["Puxada Pegada Neutra","Puxada Frente Máquina"],
+  "Crucifixo Inverso Halteres":["Face Pull na Polia","Crucifixo Inverso Máquina"],
+  "Rosca Direta Barra":["Rosca Scott Máquina","Rosca Direta Halter"],
+  "Rosca Direta Halter":["Rosca Direta Barra","Rosca Scott Máquina"],
+  "Tríceps Testa Halteres":["Tríceps Corda na Polia","Tríceps Francês Halter"],
+  "Agachamento Livre Barra":["Agachamento Hack","Leg Press 45°"],
+  "Agachamento Hack":["Agachamento Livre Barra","Leg Press 45°"],
+  "Agachamento Búlgaro":["Afundo com Halteres","Leg Press Unilateral"],
+  "Afundo com Halteres":["Agachamento Búlgaro","Leg Press Unilateral"],
+  "Terra Romeno Barra":["Stiff com Halteres","Cadeira Flexora"],
+  "Stiff com Halteres":["Terra Romeno Barra","Cadeira Flexora"],
+  "Elevação Pélvica Barra":["Elevação Pélvica (Glúteo)","Cadeira Abdutora"],
+  "Panturrilha em Pé":["Panturrilha Sentada","Panturrilha no Leg Press"],
+  "Prancha com Peso":["Prancha Frontal","Dead bug (inseto morto)"]
 };
 var exSub={};  // {índice do exercício: nome do substituto escolhido nesta sessão}
 function trocarEx(i,nome){exSub[i]=nome;openEx=i;salvarSessao();renderTreinoExec();}
